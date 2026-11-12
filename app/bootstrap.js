@@ -65,6 +65,7 @@
             '<h1><i class="ph ph-barbell"></i> FITNESS ELITE</h1>' +
           '</div>' +
           '<div class="header-right">' +
+            '<span id="modeIndicator" title="Режим загрузки модулей" style="font-size:0.7em;opacity:0.7;padding:2px 8px;border:1px solid var(--border-subtle);border-radius:10px;white-space:nowrap"></span>' +
             '<button class="theme-btn" id="styleBtn" title="Стиль (правый клик — все стили)">' +
               '<i class="ph ph-palette"></i>' +
             '</button>' +
@@ -86,6 +87,7 @@
             '<div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">' +
               '<button class="btn btn-primary" onclick="moduleManager.checkAllModules()"><i class="ph ph-arrows-clockwise"></i> Проверить обновления</button>' +
               '<button class="btn btn-danger" onclick="moduleManager.clearAllCache()"><i class="ph ph-trash"></i> Очистить кэш</button>' +
+              '<button class="btn btn-secondary" onclick="switchModuleMode()"><i class="ph ph-arrows-left-right"></i> Переключить режим</button>' +
             '</div>' +
           '</div>' +
           '<div class="dev-panel">' +
@@ -106,7 +108,7 @@
     // Обновляем профиль в сайдбаре
     if (window.Profile && window.Profile.updateSidebar) window.Profile.updateSidebar();
   }
-
+	
   // === Глобальные функции, которые дергают кнопки в разметке ===
 
   window.toggleSidebar = function() {
