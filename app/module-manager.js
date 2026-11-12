@@ -6,7 +6,7 @@
   'use strict';
 
   // ============ НАСТРОЙКИ ============
-  var GITHUB_BASE = 'https://raw.githubusercontent.com/johnntv6996-png/Fitness-Elite-repos/main/modules/';
+  var GITHUB_BASE = 'https://raw.githubusercontent.com/johnntv6996-png/Fitness-Elite/main/modules/';
   var LOCAL_BASE = 'modules/';
 
   // Авто-определение режима:
