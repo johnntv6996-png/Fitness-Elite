@@ -1,0 +1,233 @@
+/* styles/builtin/minimal.css */
+/* Минимализм — светлый, чёрно-белый, без теней, тонкие линии */
+
+/* === База === */
+body[data-style="minimal"] {
+  --bg-primary: #fafaf7;
+  --bg-secondary: #f5f5f2;
+  --bg-card: #ffffff;
+  --bg-glass: #f0f0ed;
+  --bg-hover: #f0f0ed;
+  --bg-input: #ffffff;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --text-on-accent: #ffffff;
+  --accent-gold: #1a1a1a;
+  --accent-gold-light: #333333;
+  --accent-gold-dim: rgba(0, 0, 0, 0.04);
+  --accent-success: #16a34a;
+  --accent-error: #b91c1c;
+  --accent-warning: #d97706;
+  --accent-info: #0284c7;
+  --accent-neon: #0284c7;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-gold: rgba(0, 0, 0, 0.15);
+  --border-strong: rgba(0, 0, 0, 0.2);
+  --shadow-gold: none;
+  --shadow-card: none;
+  --shadow-modal: 0 10px 40px rgba(0, 0, 0, 0.15);
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 100px;
+  --body-bg-image: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* === Шапка === */
+body[data-style="minimal"] .header {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+  box-shadow: none;
+}
+body[data-style="minimal"] .header h1 {
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: var(--text-primary);
+  background-clip: initial;
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+body[data-style="minimal"] .header h1 i { -webkit-text-fill-color: var(--text-primary); color: var(--text-primary); }
+body[data-style="minimal"] .theme-btn {
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: var(--text-primary);
+}
+body[data-style="minimal"] .theme-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+body[data-style="minimal"] .hamburger {
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+body[data-style="minimal"] .hamburger:hover { background: rgba(0, 0, 0, 0.05); }
+body[data-style="minimal"] .hamburger span { background: var(--text-primary); }
+
+/* === Сайдбар === */
+body[data-style="minimal"] .sidebar-overlay { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(6px); }
+body[data-style="minimal"] .sidebar {
+  background: #ffffff;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.06);
+}
+body[data-style="minimal"] .sidebar-header { border-bottom: 1px solid rgba(0, 0, 0, 0.06); }
+body[data-style="minimal"] .sidebar-header h2 { color: var(--text-primary); }
+body[data-style="minimal"] .sidebar-profile {
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+}
+body[data-style="minimal"] .sidebar-profile:hover {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+body[data-style="minimal"] .sidebar-profile-avatar { border: 1.5px solid var(--text-primary); background: transparent; }
+body[data-style="minimal"] .sidebar-profile-avatar i { color: var(--text-primary); }
+body[data-style="minimal"] .sidebar-profile-name { color: var(--text-primary); }
+body[data-style="minimal"] .sidebar-profile-name i { color: var(--text-primary); }
+body[data-style="minimal"] .sidebar-profile-sub { color: var(--text-secondary); }
+body[data-style="minimal"] .profile-level-block { background: transparent; border: 1px solid rgba(0, 0, 0, 0.06); border-radius: 4px; }
+body[data-style="minimal"] .profile-level-icon { color: var(--text-primary); }
+body[data-style="minimal"] .profile-level-num { color: var(--text-primary); }
+body[data-style="minimal"] .profile-level-label { color: var(--text-secondary); }
+body[data-style="minimal"] .profile-xp-text { color: var(--text-secondary); }
+body[data-style="minimal"] .profile-xp-text strong { color: var(--text-primary); }
+body[data-style="minimal"] .profile-xp-bar { background: rgba(0, 0, 0, 0.06); border: none; border-radius: 0; }
+body[data-style="minimal"] .profile-xp-fill { background: var(--text-primary); border-radius: 0; }
+body[data-style="minimal"] .profile-xp-fill::after { display: none; }
+body[data-style="minimal"] .profile-ach-hint { color: var(--text-muted); }
+body[data-style="minimal"] .profile-ach-hint i { color: var(--text-primary); }
+
+body[data-style="minimal"] .sidebar-section-title { color: var(--text-secondary); }
+body[data-style="minimal"] .sidebar-item { color: var(--text-secondary); border: 1px solid transparent; }
+body[data-style="minimal"] .sidebar-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+  transform: translateX(3px);
+}
+body[data-style="minimal"] .sidebar-item.active {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+body[data-style="minimal"] .sidebar-item i { color: var(--text-primary); }
+body[data-style="minimal"] .sidebar-divider { background: rgba(0, 0, 0, 0.06); }
+
+/* === Кнопки === */
+body[data-style="minimal"] .btn { border-radius: 4px; }
+body[data-style="minimal"] .btn-primary {
+  background: var(--text-primary);
+  color: var(--text-on-accent);
+  border: 1px solid var(--text-primary);
+  box-shadow: none;
+}
+body[data-style="minimal"] .btn-primary:hover:not(:disabled) { background: #333; border-color: #333; }
+body[data-style="minimal"] .btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+body[data-style="minimal"] .btn-secondary:hover:not(:disabled) { background: rgba(0, 0, 0, 0.05); border-color: rgba(0, 0, 0, 0.3); }
+body[data-style="minimal"] .btn-danger {
+  background: transparent;
+  color: var(--accent-error);
+  border: 1px solid rgba(185, 28, 28, 0.3);
+}
+body[data-style="minimal"] .btn-danger:hover:not(:disabled) { background: rgba(185, 28, 28, 0.1); border-color: var(--accent-error); }
+body[data-style="minimal"] .btn-success {
+  background: transparent;
+  color: var(--accent-success);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+}
+
+body[data-style="minimal"] .w-skip {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+body[data-style="minimal"] .w-skip:hover:not(:disabled) {
+  background: rgba(185, 28, 28, 0.1);
+  color: var(--accent-error);
+  border-color: var(--accent-error);
+}
+
+/* === Круглая «Начать» === */
+body[data-style="minimal"] .start-circle {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1.5px solid var(--text-primary);
+  box-shadow: none;
+}
+body[data-style="minimal"] .start-circle:active {
+  background: var(--text-primary);
+  color: #ffffff;
+}
+
+/* === Модалки === */
+body[data-style="minimal"] .workout-modal,
+body[data-style="minimal"] .survey-modal,
+body[data-style="minimal"] .ex-modal,
+body[data-style="minimal"] .calendar-modal {
+  background: rgba(250, 250, 247, 0.9);
+}
+body[data-style="minimal"] .workout-modal-content,
+body[data-style="minimal"] .survey-modal-content,
+body[data-style="minimal"] .ex-modal-content,
+body[data-style="minimal"] .calendar-content {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* === Загрузка === */
+body[data-style="minimal"] .loading h2 {
+  background: none;
+  -webkit-text-fill-color: var(--text-primary);
+  color: var(--text-primary);
+}
+body[data-style="minimal"] .loading .icon-large { color: var(--text-primary); }
+
+/* === Dev-панель === */
+body[data-style="minimal"] .dev-panel {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+}
+body[data-style="minimal"] .module-item {
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+}
+body[data-style="minimal"] .module-item:hover { background: rgba(0, 0, 0, 0.03); border-color: rgba(0, 0, 0, 0.15); }
+body[data-style="minimal"] .module-item.loaded { border-left: 3px solid var(--accent-success); }
+body[data-style="minimal"] .module-item.loading { border-left: 3px solid var(--text-primary); }
+body[data-style="minimal"] .module-item.error { border-left: 3px solid var(--accent-error); }
+body[data-style="minimal"] .console-log {
+  background: #1a1a1a;
+  color: #4ade80;
+  border: none;
+  border-radius: 4px;
+}
+body[data-style="minimal"] .console-log .error { color: #f87171; }
+body[data-style="minimal"] .console-log .warn { color: #fbbf24; }
+body[data-style="minimal"] .console-log .info { color: #e5e5e5; }
+
+/* === Тосты достижений === */
+body[data-style="minimal"] .achievement-toast {
+  background: var(--text-primary);
+  border: none;
+  border-radius: 4px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+body[data-style="minimal"] .achievement-toast .ach-icon { color: #ffffff; }
+body[data-style="minimal"] .achievement-toast .ach-title { color: #ffffff; }
+body[data-style="minimal"] .achievement-toast .ach-desc { color: rgba(255, 255, 255, 0.7); }
+body[data-style="minimal"] .achievement-particle { background: var(--text-primary); }

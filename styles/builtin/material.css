@@ -1,0 +1,233 @@
+/* styles/builtin/material.css */
+/* Материал — светлый, мягкие тени, фиолетовый акцент, pill-кнопки */
+
+/* === База === */
+body[data-style="material"] {
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #ffffff;
+  --bg-card: #fffbfe;
+  --bg-glass: #f0ecf7;
+  --bg-hover: #f0ecf7;
+  --bg-input: #ffffff;
+  --text-primary: #1c1c1e;
+  --text-secondary: #6e6e73;
+  --text-muted: #999999;
+  --text-on-accent: #ffffff;
+  --accent-gold: #6750a4;
+  --accent-gold-light: #7f67be;
+  --accent-gold-dim: rgba(103, 80, 164, 0.12);
+  --accent-success: #16a34a;
+  --accent-error: #b3261e;
+  --accent-warning: #d97706;
+  --accent-info: #0284c7;
+  --accent-neon: #0284c7;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-gold: rgba(103, 80, 164, 0.25);
+  --border-strong: rgba(0, 0, 0, 0.15);
+  --shadow-gold: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-modal: 0 8px 24px rgba(0,0,0,0.15);
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 100px;
+  --body-bg-image: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* === Шапка === */
+body[data-style="material"] .header {
+  background: #ffffff;
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+}
+body[data-style="material"] .header h1 {
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: var(--accent-gold);
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+body[data-style="material"] .header h1 i { -webkit-text-fill-color: var(--accent-gold); color: var(--accent-gold); }
+body[data-style="material"] .theme-btn {
+  background: var(--accent-gold-dim);
+  border: none;
+  color: var(--accent-gold);
+}
+body[data-style="material"] .theme-btn:hover { background: rgba(103, 80, 164, 0.22); transform: translateY(-2px); }
+body[data-style="material"] .hamburger {
+  background: var(--accent-gold-dim);
+  border: none;
+}
+body[data-style="material"] .hamburger:hover { background: rgba(103, 80, 164, 0.22); }
+body[data-style="material"] .hamburger span { background: var(--accent-gold); }
+
+/* === Сайдбар === */
+body[data-style="material"] .sidebar-overlay { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(6px); }
+body[data-style="material"] .sidebar {
+  background: #ffffff;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.06);
+}
+body[data-style="material"] .sidebar-header { border-bottom: 1px solid rgba(0, 0, 0, 0.06); }
+body[data-style="material"] .sidebar-header h2 { color: var(--accent-gold); }
+body[data-style="material"] .sidebar-profile {
+  background: var(--bg-glass);
+  border: none;
+  border-radius: 16px;
+}
+body[data-style="material"] .sidebar-profile:hover {
+  background: rgba(103, 80, 164, 0.1);
+  box-shadow: 0 2px 8px rgba(103, 80, 164, 0.12);
+}
+body[data-style="material"] .sidebar-profile-avatar { border: 2px solid var(--accent-gold); background: #ffffff; }
+body[data-style="material"] .sidebar-profile-avatar i { color: var(--accent-gold); }
+body[data-style="material"] .sidebar-profile-name { color: var(--text-primary); }
+body[data-style="material"] .sidebar-profile-name i { color: var(--accent-gold); }
+body[data-style="material"] .sidebar-profile-sub { color: var(--text-secondary); }
+body[data-style="material"] .profile-level-block { background: #ffffff; border: none; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+body[data-style="material"] .profile-level-icon { color: var(--accent-gold); }
+body[data-style="material"] .profile-level-num { color: var(--accent-gold); }
+body[data-style="material"] .profile-level-label { color: var(--text-secondary); }
+body[data-style="material"] .profile-xp-text { color: var(--text-secondary); }
+body[data-style="material"] .profile-xp-text strong { color: var(--accent-gold); }
+body[data-style="material"] .profile-xp-bar { background: rgba(103, 80, 164, 0.12); border: none; border-radius: 4px; }
+body[data-style="material"] .profile-xp-fill { background: var(--accent-gold); border-radius: 4px; }
+body[data-style="material"] .profile-xp-fill::after { display: none; }
+body[data-style="material"] .profile-ach-hint { color: var(--text-muted); }
+body[data-style="material"] .profile-ach-hint i { color: var(--accent-gold); }
+
+body[data-style="material"] .sidebar-section-title { color: var(--text-secondary); }
+body[data-style="material"] .sidebar-item { color: var(--text-secondary); border: 1px solid transparent; border-radius: 100px; }
+body[data-style="material"] .sidebar-item:hover {
+  background: rgba(103, 80, 164, 0.1);
+  color: var(--accent-gold);
+}
+body[data-style="material"] .sidebar-item.active {
+  background: rgba(103, 80, 164, 0.15);
+  color: var(--accent-gold);
+}
+body[data-style="material"] .sidebar-item i { color: var(--accent-gold); }
+body[data-style="material"] .sidebar-divider { background: rgba(0, 0, 0, 0.06); }
+
+/* === Кнопки === */
+body[data-style="material"] .btn { border-radius: 100px; }
+body[data-style="material"] .btn-primary {
+  background: linear-gradient(135deg, #5a4590, #6f57b0);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 2px 6px rgba(90, 69, 144, 0.35);
+}
+body[data-style="material"] .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4a3878, #5d4a9c);
+  box-shadow: 0 4px 12px rgba(90, 69, 144, 0.45);
+}
+body[data-style="material"] .btn-secondary {
+  background: #e8e4f0;
+  color: var(--text-primary);
+  border: 1px solid rgba(103, 80, 164, 0.15);
+}
+body[data-style="material"] .btn-secondary:hover:not(:disabled) {
+  background: #ddd7ea;
+  border-color: rgba(103, 80, 164, 0.3);
+}
+body[data-style="material"] .btn-danger {
+  background: #9c1f17;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 2px 6px rgba(156, 31, 23, 0.35);
+}
+body[data-style="material"] .btn-danger:hover:not(:disabled) { background: #7d1812; box-shadow: 0 4px 12px rgba(156, 31, 23, 0.45); }
+body[data-style="material"] .btn-success {
+  background: #13803a;
+  color: #ffffff;
+  border: none;
+}
+body[data-style="material"] .btn-success:hover:not(:disabled) { background: #0f6b30; }
+
+body[data-style="material"] .w-skip {
+  background: #e8e4f0;
+  color: var(--text-primary);
+  border: 1px solid rgba(103, 80, 164, 0.15);
+}
+body[data-style="material"] .w-skip:hover:not(:disabled) {
+  background: rgba(156, 31, 23, 0.12);
+  color: #9c1f17;
+  border-color: rgba(156, 31, 23, 0.3);
+}
+
+/* === Круглая «Начать» === */
+body[data-style="material"] .start-circle {
+  background: linear-gradient(135deg, #5a4590, #6f57b0);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 6px 16px rgba(90, 69, 144, 0.45), 0 2px 4px rgba(90, 69, 144, 0.35);
+}
+
+/* === Модалки === */
+body[data-style="material"] .workout-modal,
+body[data-style="material"] .survey-modal,
+body[data-style="material"] .ex-modal,
+body[data-style="material"] .calendar-modal {
+  background: rgba(0, 0, 0, 0.5);
+}
+body[data-style="material"] .workout-modal-content,
+body[data-style="material"] .survey-modal-content,
+body[data-style="material"] .ex-modal-content,
+body[data-style="material"] .calendar-content {
+  background: #ffffff;
+  border: none;
+  border-radius: 28px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* === Загрузка === */
+body[data-style="material"] .loading h2 {
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+body[data-style="material"] .loading .icon-large { color: var(--accent-gold); }
+
+/* === Dev-панель === */
+body[data-style="material"] .dev-panel {
+  background: #ffffff;
+  border: none;
+  border-radius: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+body[data-style="material"] .module-item {
+  background: var(--bg-card);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+body[data-style="material"] .module-item:hover { box-shadow: 0 2px 8px rgba(103, 80, 164, 0.12); }
+body[data-style="material"] .module-item.loaded { border-left: 3px solid var(--accent-success); }
+body[data-style="material"] .module-item.loading { border-left: 3px solid var(--accent-gold); }
+body[data-style="material"] .module-item.error { border-left: 3px solid var(--accent-error); }
+body[data-style="material"] .console-log {
+  background: #1c1c1e;
+  color: #4ade80;
+  border: none;
+  border-radius: 16px;
+}
+body[data-style="material"] .console-log .error { color: #f87171; }
+body[data-style="material"] .console-log .warn { color: #fbbf24; }
+body[data-style="material"] .console-log .info { color: #e5e5e5; }
+
+/* === Тосты достижений === */
+body[data-style="material"] .achievement-toast {
+  background: #1c1c1e;
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+body[data-style="material"] .achievement-toast .ach-icon { color: #ffffff; }
+body[data-style="material"] .achievement-toast .ach-title { color: #ffffff; }
+body[data-style="material"] .achievement-toast .ach-desc { color: rgba(255, 255, 255, 0.7); }
+body[data-style="material"] .achievement-particle { background: var(--accent-gold); }

@@ -1,0 +1,117 @@
+/* styles/base.css */
+/* Только базовые переменные и сброс. Визуал компонентов — в styles/builtin/*.css */
+
+:root {
+  /* === Фоны === */
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #151520;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-glass: rgba(255, 255, 255, 0.05);
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --bg-input: #0a0a0f;
+
+  /* === Текст === */
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b0;
+  --text-muted: #6a6a7a;
+  --text-on-accent: #000000;
+
+  /* === Акценты === */
+  --accent-gold: #d4af37;
+  --accent-gold-light: #f4d03f;
+  --accent-gold-dim: rgba(212, 175, 55, 0.15);
+  --accent-success: #4ade80;
+  --accent-error: #f87171;
+  --accent-warning: #fbbf24;
+  --accent-info: #60a5fa;
+  --accent-neon: #60a5fa;
+
+  /* === Границы (общие) === */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-gold: rgba(212, 175, 55, 0.3);
+  --border-strong: rgba(255, 255, 255, 0.15);
+
+  /* === Тени (общие) === */
+  --shadow-gold: 0 0 40px rgba(212, 175, 55, 0.2);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.2);
+  --shadow-modal: 0 10px 40px rgba(0, 0, 0, 0.5);
+
+  /* === Радиусы === */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 100px;
+
+  /* === Шрифты === */
+  --font-primary: 'Inter', sans-serif;
+  --font-display: 'Playfair Display', serif;
+
+  /* === Переходы === */
+  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* === Сайдбар === */
+  --sidebar-width: 320px;
+
+  /* === Фон страницы === */
+  --body-bg-image:
+    radial-gradient(circle at 20% 50%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(212, 175, 55, 0.03) 0%, transparent 50%);
+}
+
+/* === Сброс и база === */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-primary);
+  font-size: 16px;
+  overflow-x: hidden;
+  transition: background 0.3s, color 0.3s;
+  background-image: var(--body-bg-image);
+}
+
+/* === Формы (база, цвета — в стилях) === */
+select,
+input[type="text"],
+input[type="number"],
+input[type="time"],
+input[type="date"],
+input[type="email"],
+textarea {
+  font-family: var(--font-primary);
+}
+select:focus, input:focus, textarea:focus { outline: none; }
+
+/* === Скроллбар === */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--accent-gold); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-gold-light); }
+
+/* === Утилиты === */
+.text-small { font-size: 0.85em; opacity: 0.7; color: var(--text-secondary); }
+.screen { display: none; }
+.screen.active { display: block; animation: fadeIn 0.4s ease-out; }
+
+/* === Анимации (общие) === */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shimmer { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.05); } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes achBounce {
+  0% { transform: scale(0) rotate(-180deg); }
+  60% { transform: scale(1.3) rotate(10deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes particleFall {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(100vh) scale(0); opacity: 0; }
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

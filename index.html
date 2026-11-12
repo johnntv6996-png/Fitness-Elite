@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FITNESS ELITE — Premium Tracker</title>
+
+  <!-- Шрифты и иконки -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- Базовые стили приложения -->
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+
+  <!-- Встроенные стили (темы) -->
+  <link rel="stylesheet" href="styles/builtin/default.css">
+  <link rel="stylesheet" href="styles/builtin/light-classic.css">
+  <link rel="stylesheet" href="styles/builtin/neon.css">
+  <link rel="stylesheet" href="styles/builtin/minimal.css">
+  <link rel="stylesheet" href="styles/builtin/cyber.css">
+  <link rel="stylesheet" href="styles/builtin/material.css">
+  <link rel="stylesheet" href="styles/builtin/glass.css">
+</head>
+<body data-style="default">
+
+  <!-- Сюда bootstrap.js вставит всё приложение -->
+  <div id="app"></div>
+
+  <!-- Ядро -->
+  <script src="core/events.js"></script>
+  <script src="core/data.js"></script>
+  <script src="core/media.js"></script>
+  <script src="core/styles.js"></script>
+
+  <!-- Инфраструктура -->
+  <script src="app/logger.js"></script>
+  <script src="app/notify.js"></script>
+  <script src="app/errors.js"></script>
+  <script src="app/profile.js"></script>
+  <script src="app/bug-report.js"></script>
+
+  <!-- Загрузчик модулей и запуск -->
+  <script src="app/module-manager.js"></script>
+  <script src="app/bootstrap.js"></script>
+
+</body>
+</html>

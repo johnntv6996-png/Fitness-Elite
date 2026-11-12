@@ -1,0 +1,267 @@
+/* styles/builtin/cyber.css */
+/* Киберпанк — жёлтый/чёрный, резкие углы, моноширинный шрифт */
+
+/* === База === */
+body[data-style="cyber"] {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #0a0a0a;
+  --bg-glass: #1a1a1a;
+  --bg-hover: #1a1a1a;
+  --bg-input: #0a0a0a;
+  --text-primary: #f5f5f5;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --text-on-accent: #000000;
+  --accent-gold: #f0ff00;
+  --accent-gold-light: #f0ff00;
+  --accent-gold-dim: rgba(240, 255, 0, 0.1);
+  --accent-success: #f0ff00;
+  --accent-error: #ff2d55;
+  --accent-warning: #ff9500;
+  --accent-info: #00e5ff;
+  --accent-neon: #00e5ff;
+  --border-subtle: rgba(240, 255, 0, 0.15);
+  --border-gold: #f0ff00;
+  --border-strong: #f0ff00;
+  --shadow-gold: 4px 4px 0 rgba(240, 255, 0, 0.1);
+  --shadow-card: none;
+  --shadow-modal: 8px 8px 0 rgba(240, 255, 0, 0.15);
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-pill: 0;
+  --body-bg-image: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(240, 255, 0, 0.02) 2px, rgba(240, 255, 0, 0.02) 4px
+  );
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* === Моноширинный шрифт для заголовков === */
+body[data-style="cyber"] .page-title,
+body[data-style="cyber"] .header h1,
+body[data-style="cyber"] h2,
+body[data-style="cyber"] h3,
+body[data-style="cyber"] .stat-metric-value,
+body[data-style="cyber"] .metric-mini .val {
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(240, 255, 0, 0.5);
+}
+
+/* === Шапка === */
+body[data-style="cyber"] .header {
+  background: transparent;
+  border: 2px solid var(--accent-gold);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 rgba(240, 255, 0, 0.1);
+}
+body[data-style="cyber"] .header h1 {
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: var(--accent-gold);
+  background-clip: initial;
+  color: var(--accent-gold);
+}
+body[data-style="cyber"] .header h1 i { -webkit-text-fill-color: var(--accent-gold); color: var(--accent-gold); }
+body[data-style="cyber"] .theme-btn {
+  background: transparent;
+  border: 2px solid var(--accent-gold);
+  border-radius: 0;
+  color: var(--accent-gold);
+}
+body[data-style="cyber"] .theme-btn:hover { background: var(--accent-gold-dim); transform: translate(2px, 2px); }
+body[data-style="cyber"] .hamburger {
+  background: transparent;
+  border: 2px solid var(--accent-gold);
+  border-radius: 0;
+}
+body[data-style="cyber"] .hamburger:hover { background: var(--accent-gold-dim); }
+body[data-style="cyber"] .hamburger span { background: var(--accent-gold); }
+
+/* === Сайдбар === */
+body[data-style="cyber"] .sidebar-overlay { background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(6px); }
+body[data-style="cyber"] .sidebar {
+  background: #0a0a0a;
+  border-right: 2px solid var(--accent-gold);
+  box-shadow: 4px 0 0 rgba(240, 255, 0, 0.1);
+}
+body[data-style="cyber"] .sidebar-header { border-bottom: 2px solid var(--accent-gold); }
+body[data-style="cyber"] .sidebar-header h2 { color: var(--accent-gold); font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 2px; }
+body[data-style="cyber"] .sidebar-profile {
+  background: transparent;
+  border: 2px solid var(--accent-gold);
+  border-radius: 0;
+}
+body[data-style="cyber"] .sidebar-profile:hover {
+  background: var(--accent-gold-dim);
+  transform: translate(2px, 2px);
+}
+body[data-style="cyber"] .sidebar-profile-avatar { border: 2px solid var(--accent-gold); background: transparent; }
+body[data-style="cyber"] .sidebar-profile-avatar i { color: var(--accent-gold); }
+body[data-style="cyber"] .sidebar-profile-name { color: var(--accent-gold); }
+body[data-style="cyber"] .sidebar-profile-name i { color: var(--accent-gold); }
+body[data-style="cyber"] .sidebar-profile-sub { color: var(--text-secondary); }
+body[data-style="cyber"] .profile-level-block { background: transparent; border: 2px solid var(--accent-gold); border-radius: 0; }
+body[data-style="cyber"] .profile-level-icon { color: var(--accent-gold); animation: levelPulse 3s ease-in-out infinite; }
+body[data-style="cyber"] .profile-level-num { color: var(--accent-gold); }
+body[data-style="cyber"] .profile-level-label { color: var(--text-secondary); }
+body[data-style="cyber"] .profile-xp-text { color: var(--text-secondary); }
+body[data-style="cyber"] .profile-xp-text strong { color: var(--accent-gold); }
+body[data-style="cyber"] .profile-xp-bar { background: rgba(240, 255, 0, 0.1); border: none; border-radius: 0; }
+body[data-style="cyber"] .profile-xp-fill { background: var(--accent-gold); border-radius: 0; }
+body[data-style="cyber"] .profile-xp-fill::after { display: none; }
+body[data-style="cyber"] .profile-ach-hint { color: var(--text-muted); }
+body[data-style="cyber"] .profile-ach-hint i { color: var(--accent-gold); }
+
+body[data-style="cyber"] .sidebar-section-title { color: var(--text-secondary); }
+body[data-style="cyber"] .sidebar-item { color: var(--text-secondary); border: 1px solid transparent; }
+body[data-style="cyber"] .sidebar-item:hover {
+  background: var(--accent-gold-dim);
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+  transform: translateX(3px);
+}
+body[data-style="cyber"] .sidebar-item.active {
+  background: var(--accent-gold-dim);
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+}
+body[data-style="cyber"] .sidebar-item i { color: var(--accent-gold); }
+body[data-style="cyber"] .sidebar-divider { background: var(--accent-gold); }
+
+/* === Кнопки === */
+body[data-style="cyber"] .btn {
+  border-radius: 0;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+body[data-style="cyber"] .btn-primary {
+  background: transparent;
+  color: var(--accent-gold);
+  border: 2px solid var(--accent-gold);
+  box-shadow: 4px 4px 0 rgba(240, 255, 0, 0.1);
+}
+body[data-style="cyber"] .btn-primary:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(240, 255, 0, 0.1); background: var(--accent-gold-dim); }
+body[data-style="cyber"] .btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 2px solid var(--accent-gold);
+  box-shadow: 4px 4px 0 rgba(240, 255, 0, 0.1);
+}
+body[data-style="cyber"] .btn-secondary:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(240, 255, 0, 0.1); background: var(--accent-gold-dim); }
+body[data-style="cyber"] .btn-danger {
+  background: transparent;
+  color: #ff2d55;
+  border: 2px solid #ff2d55;
+  box-shadow: 4px 4px 0 rgba(255, 45, 85, 0.1);
+}
+body[data-style="cyber"] .btn-danger:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(255, 45, 85, 0.1); background: rgba(255, 45, 85, 0.1); }
+body[data-style="cyber"] .btn-success {
+  background: transparent;
+  color: var(--accent-gold);
+  border: 2px solid var(--accent-gold);
+  box-shadow: 4px 4px 0 rgba(240, 255, 0, 0.1);
+}
+
+body[data-style="cyber"] .w-skip {
+  background: transparent;
+  color: var(--text-primary);
+  border: 2px solid var(--accent-gold);
+}
+body[data-style="cyber"] .w-skip:hover:not(:disabled) {
+  background: rgba(255, 45, 85, 0.1);
+  color: #ff2d55;
+  border-color: #ff2d55;
+}
+
+/* === Круглая «Начать» === */
+body[data-style="cyber"] .start-circle {
+  background: transparent;
+  color: var(--accent-gold);
+  border: 3px solid var(--accent-gold);
+  border-radius: 0;
+  box-shadow: 8px 8px 0 rgba(240, 255, 0, 0.1);
+  font-family: 'JetBrains Mono', monospace;
+  transform: rotate(-2deg);
+}
+body[data-style="cyber"] .start-circle:hover { transform: rotate(-2deg) translateY(-2px); }
+body[data-style="cyber"] .start-circle:active { transform: rotate(-2deg) translate(4px, 4px); box-shadow: 4px 4px 0 rgba(240, 255, 0, 0.1); }
+
+/* === Модалки === */
+body[data-style="cyber"] .workout-modal,
+body[data-style="cyber"] .survey-modal,
+body[data-style="cyber"] .ex-modal,
+body[data-style="cyber"] .calendar-modal {
+  background: rgba(10, 10, 10, 0.95);
+}
+body[data-style="cyber"] .workout-modal-content,
+body[data-style="cyber"] .survey-modal-content,
+body[data-style="cyber"] .ex-modal-content,
+body[data-style="cyber"] .calendar-content {
+  background: #0a0a0a;
+  border: 2px solid var(--accent-gold);
+  border-radius: 0;
+  box-shadow: 8px 8px 0 rgba(240, 255, 0, 0.15);
+}
+
+/* === Загрузка === */
+body[data-style="cyber"] .loading h2 {
+  background: none;
+  -webkit-text-fill-color: var(--accent-gold);
+  color: var(--accent-gold);
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(240, 255, 0, 0.5);
+}
+body[data-style="cyber"] .loading .icon-large { color: var(--accent-gold); }
+
+/* === Dev-панель === */
+body[data-style="cyber"] .dev-panel {
+  background: transparent;
+  border: 2px solid var(--accent-gold);
+}
+body[data-style="cyber"] .module-item {
+  background: transparent;
+  border: 2px solid var(--accent-gold);
+  border-radius: 0;
+}
+body[data-style="cyber"] .module-item:hover { background: var(--accent-gold-dim); transform: translate(2px, 2px); }
+body[data-style="cyber"] .module-item.loaded { border-left: 3px solid var(--accent-success); }
+body[data-style="cyber"] .module-item.loading { border-left: 3px solid var(--accent-gold); }
+body[data-style="cyber"] .module-item.error { border-left: 3px solid var(--accent-error); }
+body[data-style="cyber"] .console-log {
+  background: #000;
+  color: var(--accent-gold);
+  border: 2px solid var(--accent-gold);
+  border-radius: 0;
+  font-family: 'JetBrains Mono', monospace;
+}
+body[data-style="cyber"] .console-log .error { color: #ff2d55; }
+body[data-style="cyber"] .console-log .warn { color: #ff9500; }
+body[data-style="cyber"] .console-log .info { color: var(--accent-gold); }
+
+/* === Тосты достижений === */
+body[data-style="cyber"] .achievement-toast {
+  background: var(--accent-gold);
+  color: #000;
+  border: none;
+  border-radius: 0;
+  box-shadow: 8px 8px 0 rgba(240, 255, 0, 0.2);
+  font-family: 'JetBrains Mono', monospace;
+}
+body[data-style="cyber"] .achievement-toast .ach-icon { color: #000; }
+body[data-style="cyber"] .achievement-toast .ach-title { color: #000; }
+body[data-style="cyber"] .achievement-toast .ach-desc { color: rgba(0, 0, 0, 0.7); }
+body[data-style="cyber"] .achievement-particle { background: var(--accent-gold); }
+
+/* === Анимации === */
+@keyframes levelPulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px var(--accent-gold)); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 8px var(--accent-gold)); }
+}
