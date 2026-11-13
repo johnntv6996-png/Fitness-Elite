@@ -33,16 +33,20 @@
 
   // ============ РЕЕСТР МОДУЛЕЙ ============
 	var MODULE_REGISTRY = {
-		'core':         { name: 'Ядро системы',       version: '5.0.0', file: '../core/core.js', required: true,  description: 'Базовый функционал' },
-		'welcome':      { name: 'Главная',            version: '7.0.1', file: 'welcome.js',      required: false, description: 'Экран приветствия' },
-		'exercises':    { name: 'База упражнений',    version: '6.0.1', file: 'exercises.js',    required: false, description: 'CRUD упражнений' },
-		'plan':         { name: 'План тренировок',    version: '5.0.1', file: 'plan.js',         required: false, description: 'Настройка плана' },
-		'workout':      { name: 'Тренировка',         version: '4.0.2', file: 'workout.js',      required: false, description: 'Экран тренировки' },
-		'stats':        { name: 'Статистика',         version: '5.0.2', file: 'stats.js',        required: false, description: 'Графики и аналитика' },
-		'survey':       { name: 'Опросы',             version: '4.0.2', file: 'survey.js',       required: false, description: 'Конструктор опросов' },
-		'achievements': { name: 'Достижения',         version: '2.0.2', file: 'achievements.js', required: false, description: 'Система достижений' },
-		'settings':     { name: 'Настройки',          version: '4.0.1', file: 'settings.js',     required: false, description: 'Параметры и данные' },
-		'styles':       { name: 'Стили',              version: '1.0.0', file: 'styles.js',       required: false, description: 'Выбор и загрузка стилей' }
+		'core':         { name: 'Ядро системы',       version: '5.0.0',  file: '../core/core.js', required: true,  description: 'Базовый функционал' },
+		'welcome':      { name: 'Главная',            version: '7.0.1',  file: 'welcome.js',      required: false, description: 'Экран приветствия' },
+		'exercises':    { name: 'База упражнений',    version: '6.0.1',  file: 'exercises.js',    required: false, description: 'CRUD упражнений' },
+		'plan':         { name: 'План тренировок',    version: '5.0.1',  file: 'plan.js',         required: false, description: 'Настройка плана' },
+		'workout':      { name: 'Тренировка',         version: '4.0.2',  file: 'workout.js',      required: false, description: 'Экран тренировки' },
+		'workout-flow': { name: 'Пошаговый режим', 		version: '1.0.0',  file: 'workout-flow.js', required: false, description: 'Пошаговая тренировка' },
+		'stats':        { name: 'Статистика',         version: '5.0.2',  file: 'stats.js',        required: false, description: 'Графики и аналитика' },
+		'survey':       { name: 'Опросы',             version: '4.0.2',  file: 'survey.js',       required: false, description: 'Конструктор опросов' },
+		'achievements': { name: 'Достижения',         version: '2.0.2',  file: 'achievements.js', required: false, description: 'Система достижений' },
+		'measurements': { name: 'Замеры тела',        version: '1.0.0',  file: 'measurements.js', required: false, description: 'Вес, обхваты, % жира' },
+		'nutrition': 		{ name: 'Питание', 						version: '1.0.0',  file:  'nutrition.js', 	required: false, description: 'Дневник питания и БЖУ' },
+		'anatomy':      { name: 'Анатомия',           version: '1.0.0',  file: 'anatomy.js',      required: false, description: 'Мышцы и упражнения' },
+		'settings':     { name: 'Настройки',          version: '4.0.1',  file: 'settings.js',     required: false, description: 'Параметры и данные' },
+		'styles':       { name: 'Стили',              version: '1.0.0',  file: 'styles.js',       required: false, description: 'Выбор и загрузка стилей' }
 	};
 
   function log(msg, type) {

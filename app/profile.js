@@ -1,14 +1,18 @@
 // app/profile.js
 // Профиль пользователя: имя, аватар, модалка редактирования.
-// Использует localStorage (ft_user_name, ft_user_avatar).
-// Требует: Logger, Notify.
+// Единый источник: ft_user_name, ft_user_avatar.
+// Требует: Logger, Notify (опционально).
 
 (function() {
   'use strict';
 
   var NAME_KEY = 'ft_user_name';
   var AVATAR_KEY = 'ft_user_avatar';
+  var SETTINGS_KEY = 'ft_settings';
 
+  var _listeners = [];   // колбэки onChange
+
+  /* ---------- ХРАНИЛИЩЕ ---------- */
   function readJSON(key) {
     try {
       var raw = localStorage.getItem(key);
@@ -17,7 +21,12 @@
   }
 
   function writeJSON(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (e) { return false; }
+  }
+
+  function removeKey(key) {
+    try { localStorage.removeItem(key); } catch (e) {}
   }
 
   function esc(text) {
@@ -30,9 +39,7 @@
       .replace(/'/g, '&#39;');
   }
 
-  function getUserName() { return readJSON(NAME_KEY) || ''; }
-  function getUserAvatar() { return readJSON(AVATAR_KEY); }
-
+  /* ---------- АВАТАР ---------- */
   function isImageAvatar(a) {
     return typeof a === 'string' && a.indexOf('data:image') === 0;
   }
@@ -40,9 +47,8 @@
     return typeof a === 'string' && /^ph-[a-z0-9-]+$/.test(a);
   }
 
-  function renderAvatarHTML(avatar, sizePx, borderPx) {
+  function renderAvatarHTML(avatar, sizePx) {
     sizePx = sizePx || 52;
-    borderPx = borderPx || 2;
     if (isImageAvatar(avatar)) {
       return '<img src="' + esc(avatar) + '" style="width:100%;height:100%;object-fit:cover" alt="avatar">';
     }
@@ -52,20 +58,92 @@
     return '<i class="ph ph-user-circle" style="font-size:' + Math.round(sizePx * 0.55) + 'px;color:var(--accent-gold)"></i>';
   }
 
-  // ==== Сайдбар ====
+  /* ---------- ПОДПИСКА НА ИЗМЕНЕНИЯ ---------- */
+  function notifyChange() {
+    for (var i = 0; i < _listeners.length; i++) {
+      try { _listeners[i](); } catch (e) {}
+    }
+  }
+  function onChange(fn) {
+    if (typeof fn !== 'function') return function() {};
+    _listeners.push(fn);
+    return function off() {
+      var idx = _listeners.indexOf(fn);
+      if (idx !== -1) _listeners.splice(idx, 1);
+    };
+  }
+
+  /* ---------- ГЕТТЕРЫ ---------- */
+  function getUserName() {
+    var n = readJSON(NAME_KEY);
+    if (n != null) return typeof n === 'string' ? n : '';
+    // Fallback: если имя лежит в ft_settings.userName (старый формат)
+    var s = readJSON(SETTINGS_KEY);
+    if (s && typeof s.userName === 'string') return s.userName;
+    return '';
+  }
+
+  function getUserAvatar() {
+    return readJSON(AVATAR_KEY);
+  }
+
+  /* ---------- СЕТТЕРЫ (единая точка записи) ---------- */
+  function setName(name) {
+    name = name == null ? '' : String(name);
+    writeJSON(NAME_KEY, name);
+
+    // Синхронизируем ft_settings.userName, если он там был (обратная совместимость)
+    var s = readJSON(SETTINGS_KEY);
+    if (s && typeof s === 'object' && 'userName' in s) {
+      s.userName = name;
+      writeJSON(SETTINGS_KEY, s);
+    }
+
+    updateSidebarProfile();
+    notifyChange();
+  }
+
+  function setAvatar(avatar) {
+    if (avatar == null) removeKey(AVATAR_KEY);
+    else writeJSON(AVATAR_KEY, avatar);
+
+    updateSidebarProfile();
+    notifyChange();
+  }
+
+  /* ---------- СТАТИСТИКА (для консистентности) ---------- */
+  function getStats() {
+    var defaults = { yes: 0, later: 0, no: 0, xp: 0, level: 1, streak: 0 };
+    if (typeof CoreData !== 'undefined' && CoreData.getStats) {
+      var s1 = CoreData.getStats();
+      for (var k1 in defaults) if (s1[k1] === undefined) s1[k1] = defaults[k1];
+      return s1;
+    }
+    try {
+      var s = readJSON('ft_stats') || {};
+      for (var k in defaults) if (s[k] === undefined) s[k] = defaults[k];
+      return s;
+    } catch (e) { return defaults; }
+  }
+
+  /* ---------- САЙДБАР ---------- */
   function updateSidebarProfile() {
     var nameEl = document.getElementById('sidebarName');
     var avatarEl = document.getElementById('sidebarAvatar');
-    if (!nameEl || !avatarEl) return;
+    if (!nameEl && !avatarEl) return;
 
     var name = getUserName();
     var avatar = getUserAvatar();
 
-    nameEl.innerHTML = '<span>' + esc(name || 'Гость') + '</span><i class="ph ph-pencil-simple"></i>';
-    avatarEl.innerHTML = renderAvatarHTML(avatar, 52, 2);
+    if (nameEl) {
+      nameEl.innerHTML = '<span>' + esc(name || 'Гость') + '</span><i class="ph ph-pencil-simple"></i>';
+    }
+    if (avatarEl) {
+      avatarEl.innerHTML = renderAvatarHTML(avatar, 52);
+    }
   }
 
-  // ==== Модалка профиля ====
+  /* ---------- МОДАЛКА ---------- */
   function openProfileModal() {
     var name = getUserName();
     var avatar = getUserAvatar();
@@ -87,7 +165,7 @@
       '<h2 style="font-family:var(--font-display);color:var(--accent-gold);margin-top:0;display:flex;align-items:center;gap:10px"><i class="ph ph-user-circle"></i> Профиль</h2>' +
       '<div style="text-align:center;margin:20px 0">' +
         '<div id="profileAvatarPreview" style="width:100px;height:100px;border-radius:50%;border:3px solid var(--border-gold);overflow:hidden;background:var(--bg-primary);display:inline-flex;align-items:center;justify-content:center">' +
-          renderAvatarHTML(avatar, 100, 3) +
+          renderAvatarHTML(avatar, 100) +
         '</div>' +
       '</div>' +
       '<div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;flex-wrap:wrap">' +
@@ -106,6 +184,15 @@
 
     modal.appendChild(content);
     document.body.appendChild(modal);
+
+    // Enter — сохранить
+    var input = document.getElementById('profileNameInput');
+    if (input) {
+      input.onkeydown = function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); saveProfile(); }
+      };
+      setTimeout(function() { input.focus(); input.select(); }, 50);
+    }
   }
 
   function closeModal() {
@@ -117,7 +204,7 @@
     var preview = document.getElementById('profileAvatarPreview');
     if (!preview) return;
     var avatar = getUserAvatar();
-    preview.innerHTML = renderAvatarHTML(avatar, 100, 3);
+    preview.innerHTML = renderAvatarHTML(avatar, 100);
 
     var hasAvatar = isImageAvatar(avatar) || isIconAvatar(avatar);
     var modal = document.getElementById('profileModal');
@@ -131,12 +218,12 @@
     var input = document.getElementById('profileNameInput');
     if (!input) return;
     var name = input.value.trim();
-    writeJSON(NAME_KEY, name);
+    setName(name);
     closeModal();
-    updateSidebarProfile();
     if (window.Notify) window.Notify.success('Профиль сохранён!');
   }
 
+  /* ---------- АВАТАР: ЗАГРУЗКА ---------- */
   function uploadAvatar() {
     var input = document.createElement('input');
     input.type = 'file';
@@ -152,20 +239,31 @@
       reader.onload = function(ev) {
         var img = new Image();
         img.onload = function() {
-          var canvas = document.createElement('canvas');
-          var size = 200;
-          canvas.width = size;
-          canvas.height = size;
-          var ctx = canvas.getContext('2d');
-          var minDim = Math.min(img.width, img.height);
-          ctx.drawImage(img, (img.width - minDim) / 2, (img.height - minDim) / 2, minDim, minDim, 0, 0, size, size);
           try {
-            writeJSON(AVATAR_KEY, canvas.toDataURL('image/jpeg', 0.85));
-            updateModalPreview();
-            updateSidebarProfile();
-            if (window.Notify) window.Notify.success('Аватар обновлён!');
+            var canvas = document.createElement('canvas');
+            var size = 160;
+            canvas.width = size;
+            canvas.height = size;
+            var ctx = canvas.getContext('2d');
+            var minDim = Math.min(img.width, img.height);
+            ctx.drawImage(img, (img.width - minDim) / 2, (img.height - minDim) / 2, minDim, minDim, 0, 0, size, size);
+
+            // Пробуем webp (меньше размер), иначе jpeg
+            var dataUrl = null;
+            try {
+              dataUrl = canvas.toDataURL('image/webp', 0.85);
+              if (!dataUrl || dataUrl.indexOf('data:image/webp') !== 0) dataUrl = null;
+            } catch (e) {}
+            if (!dataUrl) dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+            if (setAvatar(dataUrl)) {
+              updateModalPreview();
+              if (window.Notify) window.Notify.success('Аватар обновлён!');
+            } else {
+              if (window.Notify) window.Notify.error('Не удалось сохранить аватар (нет места)');
+            }
           } catch (err) {
-            if (window.Notify) window.Notify.error('Ошибка сохранения');
+            if (window.Notify) window.Notify.error('Ошибка обработки изображения');
           }
         };
         img.onerror = function() {
@@ -180,11 +278,11 @@
 
   function removeAvatar() {
     if (!confirm('Удалить аватар?')) return;
-    try { localStorage.removeItem(AVATAR_KEY); } catch (e) {}
+    setAvatar(null);
     updateModalPreview();
-    updateSidebarProfile();
   }
 
+  /* ---------- АВАТАР: ИКОНКИ ---------- */
   var ICONS = [
     { id: 'ph-user-circle', label: 'Пользователь' },
     { id: 'ph-barbell', label: 'Штанга' },
@@ -205,6 +303,8 @@
     var old = document.getElementById('iconPickerModal');
     if (old) old.remove();
 
+    var currentAvatar = getUserAvatar();
+
     var modal = document.createElement('div');
     modal.className = 'ex-modal';
     modal.id = 'iconPickerModal';
@@ -219,7 +319,14 @@
     html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px">';
     for (var i = 0; i < ICONS.length; i++) {
       var ic = ICONS[i];
-      html += '<button onclick="Profile.setIcon(\'' + ic.id + '\')" style="padding:16px;background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--text-secondary);transition:all 0.2s" onmouseover="this.style.borderColor=\'var(--border-gold)\'" onmouseout="this.style.borderColor=\'var(--border-subtle)\'"><i class="ph ' + ic.id + '" style="font-size:2em;color:var(--accent-gold)"></i><span style="font-size:0.75em">' + esc(ic.label) + '</span></button>';
+      var active = (currentAvatar === ic.id);
+      var borderColor = active ? 'var(--accent-gold)' : 'var(--border-subtle)';
+      var bg = active ? 'var(--accent-gold-dim)' : 'var(--bg-primary)';
+      html += '<button onclick="Profile.setIcon(\'' + ic.id + '\')" style="padding:16px;background:' + bg + ';border:2px solid ' + borderColor + ';border-radius:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--text-secondary);transition:all 0.2s;position:relative" onmouseover="this.style.borderColor=\'var(--accent-gold)\'" onmouseout="this.style.borderColor=\'' + borderColor + '\'">' +
+        '<i class="ph ' + ic.id + '" style="font-size:2em;color:var(--accent-gold)"></i>' +
+        '<span style="font-size:0.75em">' + esc(ic.label) + '</span>' +
+        (active ? '<i class="ph-fill ph-check-circle" style="position:absolute;top:6px;right:6px;color:var(--accent-gold);font-size:1.1em"></i>' : '') +
+      '</button>';
     }
     html += '</div>';
 
@@ -229,24 +336,43 @@
   }
 
   function setIcon(iconId) {
-    writeJSON(AVATAR_KEY, iconId);
+    setAvatar(iconId);
     var m = document.getElementById('iconPickerModal');
     if (m) m.remove();
     updateModalPreview();
-    updateSidebarProfile();
   }
 
-  // Публичный API
+  /* ---------- ПУБЛИЧНЫЙ API ---------- */
   window.Profile = {
+    // Геттеры
     getUserName: getUserName,
     getUserAvatar: getUserAvatar,
+    getStats: getStats,
+
+    // Сеттеры (единая точка записи)
+    setName: setName,
+    setAvatar: setAvatar,
+
+    // Утилиты
+    isImageAvatar: isImageAvatar,
+    isIconAvatar: isIconAvatar,
+    renderAvatarHTML: renderAvatarHTML,
+
+    // Сайдбар
     updateSidebar: updateSidebarProfile,
+
+    // Модалка
     openModal: openProfileModal,
     closeModal: closeModal,
     saveProfile: saveProfile,
+
+    // Аватар
     uploadAvatar: uploadAvatar,
     removeAvatar: removeAvatar,
     chooseIcon: chooseIcon,
-    setIcon: setIcon
+    setIcon: setIcon,
+
+    // Подписка
+    onChange: onChange
   };
 })();

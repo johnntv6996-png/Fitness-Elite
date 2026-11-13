@@ -332,6 +332,12 @@ const AnatomyModule = {
     return null;
   },
 
+  /* ---------- СВЯЗЬ С УПРАЖНЕНИЯМИ ---------- */
+  getExercisesForMuscle: function(muscleId) {
+    if (typeof ExercisesModule === 'undefined' || !ExercisesModule.getExercisesByMuscle) return [];
+    return ExercisesModule.getExercisesByMuscle(muscleId);
+  },
+
   /* ---------- КЭШ КАРТИНОК ---------- */
   getCachedImage: function(muscleId) {
     try {
@@ -369,12 +375,10 @@ const AnatomyModule = {
       catch (e) { return false; }
     }
 
-    // 1) напрямую с CORS
     tryLoad(imageUrl, true, function(img) {
       if (save(compress(img))) { callback && callback(true); return; }
       callback && callback(false, 'Нет места');
     }, function() {
-      // 2) через прокси images.weserv.nl
       var proxied = 'https://images.weserv.nl/?url=' + encodeURIComponent(imageUrl);
       tryLoad(proxied, false, function(img) {
         if (save(compress(img))) { callback && callback(true); return; }
@@ -460,6 +464,19 @@ const AnatomyModule = {
         '.muscle-functions li:last-child { border-bottom:none; }' +
         '.muscle-antagonist-chip { display:inline-block; padding:6px 12px; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:16px; margin:0 6px 6px 0; font-size:0.85em; cursor:pointer; }' +
         '.muscle-antagonist-chip:hover { border-color:var(--border-gold); color:var(--accent-gold); }' +
+
+        /* NEW: упражнения в карточке мышцы */
+        '.muscle-ex-list { display:flex; flex-direction:column; gap:6px; }' +
+        '.muscle-ex-item { display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:10px; cursor:pointer; transition:all 0.15s; }' +
+        '.muscle-ex-item:hover { border-color:var(--border-gold); transform:translateX(3px); }' +
+        '.muscle-ex-item .ex-icon { width:32px; height:32px; border-radius:8px; background:var(--accent-gold-dim); border:1px solid var(--border-gold); display:flex; align-items:center; justify-content:center; color:var(--accent-gold); font-size:1.05em; flex-shrink:0; }' +
+        '.muscle-ex-item .ex-info { flex:1; min-width:0; }' +
+        '.muscle-ex-item .ex-name { font-weight:600; font-size:0.9em; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }' +
+        '.muscle-ex-item .ex-cat { font-size:0.75em; opacity:0.6; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }' +
+        '.muscle-ex-item .ex-arrow { color:var(--accent-gold); font-size:1em; flex-shrink:0; }' +
+        '.muscle-ex-empty { text-align:center; padding:16px; opacity:0.6; font-size:0.85em; background:var(--bg-primary); border-radius:10px; border:1px dashed var(--border-subtle); }' +
+        '.muscle-ex-show-all { width:100%; margin-top:8px; padding:10px 14px; background:var(--accent-gold-dim); border:1px solid var(--border-gold); border-radius:10px; color:var(--accent-gold); font-weight:600; font-size:0.85em; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.15s; font-family:var(--font-primary); }' +
+        '.muscle-ex-show-all:hover { background:var(--accent-gold); color:var(--text-on-accent); }' +
 
         '@media (max-width: 600px) { .muscle-modal-content { padding:18px; } }' +
       '</style>' +
@@ -575,6 +592,33 @@ const AnatomyModule = {
       functionsHtml += '</ul></div>';
     }
 
+    /* NEW: блок упражнений */
+    var exercises = this.getExercisesForMuscle(m.id);
+    var exercisesHtml = '<div style="margin-top:16px"><div style="font-weight:600;font-size:0.9em;margin-bottom:8px;color:var(--accent-gold);display:flex;align-items:center;gap:6px"><i class="ph ph-barbell"></i> Упражнения <span style="opacity:0.6;font-weight:500;font-size:0.9em">(' + exercises.length + ')</span></div>';
+    if (exercises.length === 0) {
+      exercisesHtml += '<div class="muscle-ex-empty"><i class="ph ph-info" style="font-size:1.4em;display:block;margin-bottom:4px;color:var(--accent-gold)"></i>Пока нет упражнений с этой мышцей.<br><span style="font-size:0.9em;opacity:0.8">Добавь мышцу в упражнение в базе.</span></div>';
+    } else {
+      exercisesHtml += '<div class="muscle-ex-list">';
+      for (var ei = 0; ei < exercises.length; ei++) {
+        var ex = exercises[ei];
+        var catPath = '';
+        if (typeof ExercisesModule !== 'undefined' && ExercisesModule.getCategoryPath) {
+          catPath = ExercisesModule.getCategoryPath(ex.muscleGroup).join(' / ');
+        }
+        exercisesHtml += '<div class="muscle-ex-item" data-ex="' + esc(ex.id) + '">' +
+          '<div class="ex-icon"><i class="ph ph-barbell"></i></div>' +
+          '<div class="ex-info">' +
+            '<div class="ex-name">' + esc(ex.name) + '</div>' +
+            '<div class="ex-cat">' + esc(catPath || 'Без категории') + '</div>' +
+          '</div>' +
+          '<i class="ph ph-caret-right ex-arrow"></i>' +
+        '</div>';
+      }
+      exercisesHtml += '</div>';
+      exercisesHtml += '<button class="muscle-ex-show-all" data-act="show-all-ex"><i class="ph ph-list-magnifying-glass"></i> Показать все упражнения с этой мышцей</button>';
+    }
+    exercisesHtml += '</div>';
+
     var cacheStatusHtml = '';
     if (cachedImg) {
       cacheStatusHtml = '<div style="font-size:0.75em;opacity:0.6;margin-bottom:12px;display:flex;align-items:center;gap:4px"><i class="ph ph-check-circle" style="color:var(--accent-success)"></i> Картинка в кэше — доступна офлайн</div>';
@@ -610,9 +654,7 @@ const AnatomyModule = {
         '<div style="font-size:0.85em;opacity:0.7;margin-bottom:16px"><i class="ph ph-map-pin"></i> ' + esc(part ? part.name : '') + '</div>' +
         functionsHtml +
         antagonistsHtml +
-        '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border-subtle)">' +
-          '<div style="font-size:0.85em;opacity:0.6;display:flex;align-items:center;gap:6px"><i class="ph ph-info"></i> Скоро здесь появятся упражнения, в которых задействована эта мышца.</div>' +
-        '</div>' +
+        exercisesHtml +
       '</div>';
 
     document.body.appendChild(modal);
@@ -628,6 +670,33 @@ const AnatomyModule = {
         var id = chip.getAttribute('data-muscle');
         modal.remove();
         self.openMuscleCard(id);
+      };
+    });
+
+    /* NEW: клик по упражнению → открыть карточку упражнения */
+    modal.querySelectorAll('.muscle-ex-item').forEach(function(item) {
+      item.onclick = function() {
+        var exId = item.getAttribute('data-ex');
+        modal.remove();
+        if (typeof ExercisesModule !== 'undefined' && ExercisesModule.viewExercise) {
+          Core.navigate('exercises');
+          setTimeout(function() {
+            ExercisesModule.viewExercise(exId);
+          }, 100);
+        }
+      };
+    });
+
+    /* NEW: показать все упражнения с этой мышцей */
+    modal.querySelectorAll('[data-act="show-all-ex"]').forEach(function(btn) {
+      btn.onclick = function() {
+        modal.remove();
+        if (typeof ExercisesModule !== 'undefined' && ExercisesModule.setMuscleFilter) {
+          if (typeof Core !== 'undefined' && Core.navigate) Core.navigate('exercises');
+          setTimeout(function() {
+            ExercisesModule.setMuscleFilter(m.id);
+          }, 100);
+        }
       };
     });
 

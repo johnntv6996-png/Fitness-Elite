@@ -1,4 +1,5 @@
 // modules/stats.js
+
 const StatsModule = {
   zoom: { xMin: 0, xMax: 29, yMin: 0, yMax: 10 },
   isPanning: false,
@@ -15,12 +16,17 @@ const StatsModule = {
   _chartDataCacheKey: null,
   _zoomInitialized: false,
   _currentMaxY: 10,
+  _maxYCache: {},       // NEW: мемоизация findMaxY по ключу данных
+  _metricsBuilt: false, // NEW: buildMetrics только один раз
+  _legendExpanded: false,
 
   init: function() {
     if (typeof Logger !== 'undefined') Logger.log('Модуль статистики инициализирован', 'info');
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function() { StatsModule.setup(); });
-    } else { this.setup(); }
+    } else {
+      this.setup();
+    }
   },
 
   setup: function() {
@@ -29,12 +35,10 @@ const StatsModule = {
       Core.addNavButton('Статистика', 'stats', '<i class="ph ph-chart-line-up"></i>');
       Core.registerScreen('stats', function() { StatsModule.createStatsScreen(); });
     }
-    // Подписка: при изменении истории — сбросить кэш графика и перерисовать
     var self = this;
     if (typeof Events !== 'undefined' && Events.on) {
       Events.on('history:changed', function() {
-        self._chartDataCache = null;
-        self._chartDataCacheKey = null;
+        self.invalidateChartCache();
         var screen = document.getElementById('screen-stats');
         if (screen && screen.classList.contains('active') && typeof self.drawChart === 'function') {
           self.drawChart();
@@ -43,53 +47,84 @@ const StatsModule = {
     }
   },
 
+  invalidateChartCache: function() {
+    this._chartDataCache = null;
+    this._chartDataCacheKey = null;
+    this._maxYCache = {};
+  },
+
+  /* ---------- ДАННЫЕ (безопасное чтение) ---------- */
   getStats: function() {
-    if (typeof CoreData !== 'undefined') return CoreData.getStats();
-    var defaults = {yes:0, later:0, no:0, xp:0, level:1, streak:0};
-    if (typeof FTStorage !== 'undefined') {
+    if (typeof CoreData !== 'undefined' && CoreData.getStats) return CoreData.getStats();
+    var defaults = { yes: 0, later: 0, no: 0, xp: 0, level: 1, streak: 0 };
+    if (typeof FTStorage !== 'undefined' && FTStorage.get) {
       var s = FTStorage.get('stats') || {};
       for (var k in defaults) if (s[k] === undefined) s[k] = defaults[k];
       return s;
     }
     return defaults;
   },
+
   getHistory: function() {
-    if (typeof CoreData !== 'undefined') return CoreData.getHistory();
-    return (typeof FTStorage !== 'undefined' ? FTStorage.get('history') : null) || [];
-  },
-  getSurveyConfig: function() {
-    if (typeof CoreData !== 'undefined') return CoreData.getSurveyConfig();
-    return (typeof FTStorage !== 'undefined' ? FTStorage.get('survey_config') : null) || null;
+    var h;
+    if (typeof CoreData !== 'undefined' && CoreData.getHistory) h = CoreData.getHistory();
+    else if (typeof FTStorage !== 'undefined' && FTStorage.get) h = FTStorage.get('history');
+    else h = [];
+    if (!Array.isArray(h)) return [];
+    // Защита от битых записей
+    return h.filter(function(r) { return r && typeof r.date === 'string' && r.date; });
   },
 
+  getSurveyConfig: function() {
+    if (typeof CoreData !== 'undefined' && CoreData.getSurveyConfig) return CoreData.getSurveyConfig();
+    if (typeof FTStorage !== 'undefined' && FTStorage.get) return FTStorage.get('survey_config') || null;
+    return null;
+  },
+
+  _formatDate: function(date) {
+    if (typeof Core !== 'undefined' && Core.utils && Core.utils.formatLocalDate) {
+      return Core.utils.formatLocalDate(date);
+    }
+    var y = date.getFullYear();
+    var m = String(date.getMonth() + 1).padStart(2, '0');
+    var d = String(date.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  },
+
+  /* ---------- МЕТРИКИ ---------- */
   buildMetrics: function() {
+    if (this._metricsBuilt && Object.keys(this.allMetrics).length > 0) return;
+
     var metrics = {};
     metrics['exercises'] = { id: 'exercises', label: 'Упражнения', color: '#d4af37', key: 'exCount', enabled: true, source: 'system', unit: '' };
     metrics['weight'] = { id: 'weight', label: 'Вес', color: '#4ade80', key: 'weight', enabled: false, source: 'system', unit: 'кг' };
     metrics['mood'] = { id: 'mood', label: 'Самочувствие', color: '#60a5fa', key: 'mood', enabled: false, source: 'system', unit: '/10' };
+
     var config = this.getSurveyConfig();
-    if (config && config.questions) {
+    if (config && Array.isArray(config.questions)) {
       for (var i = 0; i < config.questions.length; i++) {
         var q = config.questions[i];
-        if (['rating', 'emoji', 'range', 'number'].indexOf(q.type) !== -1) {
-          var id = 'survey_' + q.id;
-          var shortLabel = q.text.length > 18 ? q.text.substring(0, 18) + '…' : q.text;
-          metrics[id] = {
-            id: id, label: shortLabel, color: this.getMetricColor(i + 3),
-            key: 'survey_' + q.id, enabled: false, source: 'survey',
-            questionId: q.id, questionType: q.type,
-            min: q.min !== undefined ? q.min : 1,
-            max: q.max !== undefined ? q.max : 10,
-            unit: q.unit || '',
-            emojiSet: q.emojiSet || null
-          };
-        }
+        if (!q || ['rating', 'emoji', 'range', 'number'].indexOf(q.type) === -1) continue;
+        var id = 'survey_' + q.id;
+        var text = q.text || '';
+        var shortLabel = text.length > 18 ? text.substring(0, 18) + '…' : text;
+        metrics[id] = {
+          id: id, label: shortLabel, color: this.getMetricColor(i + 3),
+          key: 'survey_' + q.id, enabled: false, source: 'survey',
+          questionId: q.id, questionType: q.type,
+          min: q.min !== undefined ? q.min : 1,
+          max: q.max !== undefined ? q.max : 10,
+          unit: q.unit || '',
+          emojiSet: q.emojiSet || null
+        };
       }
     }
+
     this.allMetrics = metrics;
     if (Object.keys(this.activeMetrics).length === 0) {
       for (var key in metrics) this.activeMetrics[key] = metrics[key].enabled;
     }
+    this._metricsBuilt = true;
   },
 
   getMetricColor: function(index) {
@@ -97,15 +132,25 @@ const StatsModule = {
     return colors[index % colors.length];
   },
 
+  /* ---------- КЛЮЧ КЭША ---------- */
   buildChartDataCacheKey: function(history) {
     if (!history || history.length === 0) return 'empty';
+    var first = history[0];
     var last = history[history.length - 1];
-    return history.length + '_' + history[0].date + '_' + last.date + '_' +
-      (last.timestamp || 0) + '_' +
-      JSON.stringify(last.survey || {}) + '_' +
-      (last.weight || '') + '_' + (last.mood || '');
+    var lastSurvey = '';
+    try { lastSurvey = JSON.stringify(last.survey || {}); } catch (e) {}
+    return [
+      history.length,
+      first.date || '',
+      last.date || '',
+      last.timestamp || 0,
+      lastSurvey,
+      last.weight || '',
+      last.mood || ''
+    ].join('|');
   },
 
+  /* ---------- ДАННЫЕ ГРАФИКА (мемоизация) ---------- */
   buildChartData: function() {
     var history = this.getHistory();
     var key = this.buildChartDataCacheKey(history);
@@ -114,46 +159,59 @@ const StatsModule = {
     if (history.length === 0) {
       this._chartDataCache = { data: { exercises: [], weight: [], mood: [] }, labels: [], totalDays: 30 };
       this._chartDataCacheKey = key;
+      this.totalDays = 30;
       return this._chartDataCache;
     }
 
-    var dates = history.map(function(h) { return h.date; }).sort();
+    var dates = history.map(function(h) { return h.date; }).filter(Boolean).sort();
+    if (dates.length === 0) {
+      this._chartDataCache = { data: { exercises: [], weight: [], mood: [] }, labels: [], totalDays: 30 };
+      this._chartDataCacheKey = key;
+      this.totalDays = 30;
+      return this._chartDataCache;
+    }
+
     var firstDate = new Date(dates[0] + 'T00:00:00');
+    if (isNaN(firstDate.getTime())) firstDate = new Date();
     var today = new Date();
     today.setHours(0, 0, 0, 0);
     var msPerDay = 1000 * 60 * 60 * 24;
     var totalDays = Math.floor((today - firstDate) / msPerDay) + 1;
-    if (totalDays < 1) totalDays = 1;
+    if (!isFinite(totalDays) || totalDays < 1) totalDays = 1;
+    if (totalDays > 3650) totalDays = 3650; // защита от мусора в датах
 
     var data = { exercises: [], weight: [], mood: [] };
     var labels = [];
-    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap) ? Core.getHistoryMap(history) : {};
+    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap)
+      ? Core.getHistoryMap(history)
+      : this._buildHistoryMap(history);
+
     var config = this.getSurveyConfig();
     var surveyKeys = [];
-    if (config && config.questions) {
+    if (config && Array.isArray(config.questions)) {
       for (var i = 0; i < config.questions.length; i++) {
         var q = config.questions[i];
-        if (['rating', 'emoji', 'range', 'number'].indexOf(q.type) !== -1) {
-          var key2 = 'survey_' + q.id;
-          data[key2] = [];
-          surveyKeys.push(key2);
+        if (q && ['rating', 'emoji', 'range', 'number'].indexOf(q.type) !== -1) {
+          var sk = 'survey_' + q.id;
+          data[sk] = [];
+          surveyKeys.push(sk);
         }
       }
     }
 
-    for (var i = 0; i < totalDays; i++) {
+    for (var d = 0; d < totalDays; d++) {
       var date = new Date(firstDate);
-      date.setDate(date.getDate() + i);
-      var dateStr = (typeof Core !== 'undefined' && Core.utils && Core.utils.formatLocalDate) ? Core.utils.formatLocalDate(date) : date.toISOString().slice(0, 10);
-      var dayRecord = historyMap[dateStr] || null;
+      date.setDate(date.getDate() + d);
+      var dateStr = this._formatDate(date);
+      var rec = historyMap[dateStr] || null;
       var exCount = 0;
-      if (dayRecord && !dayRecord.skipped && dayRecord.exercises) exCount = dayRecord.exercises.length;
+      if (rec && !rec.skipped && Array.isArray(rec.exercises)) exCount = rec.exercises.length;
       data.exercises.push(exCount);
-      data.weight.push(dayRecord && dayRecord.weight ? dayRecord.weight : null);
-      data.mood.push(dayRecord && dayRecord.mood ? dayRecord.mood : null);
-      for (var k = 0; k < surveyKeys.length; k++) {
-        var qId = surveyKeys[k].replace('survey_', '');
-        data[surveyKeys[k]].push(dayRecord && dayRecord.survey && dayRecord.survey[qId] !== undefined ? dayRecord.survey[qId] : null);
+      data.weight.push(rec && rec.weight ? rec.weight : null);
+      data.mood.push(rec && rec.mood ? rec.mood : null);
+      for (var s = 0; s < surveyKeys.length; s++) {
+        var qId = surveyKeys[s].replace('survey_', '');
+        data[surveyKeys[s]].push(rec && rec.survey && rec.survey[qId] !== undefined ? rec.survey[qId] : null);
       }
       labels.push(date.getDate() + '.' + (date.getMonth() + 1));
     }
@@ -172,26 +230,51 @@ const StatsModule = {
     return this._chartDataCache;
   },
 
+  _buildHistoryMap: function(history) {
+    var map = {};
+    if (!Array.isArray(history)) return map;
+    for (var i = 0; i < history.length; i++) {
+      if (history[i] && history[i].date) map[history[i].date] = history[i];
+    }
+    return map;
+  },
+
+  /* ---------- МАКСИМУМ Y (мемоизация) ---------- */
   findMaxY: function(data) {
+    if (!data) return 10;
+
+    // Ключ: cacheKey + активные метрики
+    var activeKeys = [];
+    for (var k in this.activeMetrics) if (this.activeMetrics[k]) activeKeys.push(k);
+    activeKeys.sort();
+    var cacheKey = (this._chartDataCacheKey || '') + '::' + activeKeys.join(',');
+
+    if (this._maxYCache[cacheKey] !== undefined) return this._maxYCache[cacheKey];
+
     var maxVal = 0;
-    var metrics = this.allMetrics;
-    for (var key in metrics) {
-      if (!this.activeMetrics[key]) continue;
-      var series = data[key];
-      if (!series) continue;
+    for (var ak = 0; ak < activeKeys.length; ak++) {
+      var series = data[activeKeys[ak]];
+      if (!Array.isArray(series)) continue;
       for (var i = 0; i < series.length; i++) {
-        if (series[i] !== null && series[i] > maxVal) maxVal = series[i];
+        var v = series[i];
+        if (v !== null && v !== undefined && v > maxVal) maxVal = v;
       }
     }
+
     if (maxVal <= 0) maxVal = 10;
     else if (maxVal <= 10) maxVal = 10;
     else if (maxVal <= 20) maxVal = 20;
     else if (maxVal <= 50) maxVal = 50;
     else if (maxVal <= 100) maxVal = 100;
     else maxVal = Math.ceil(maxVal / 50) * 50;
+
+    // Ограничим кэш
+    if (Object.keys(this._maxYCache).length > 50) this._maxYCache = {};
+    this._maxYCache[cacheKey] = maxVal;
     return maxVal;
   },
 
+  /* ---------- ЭКРАН ---------- */
   createStatsScreen: function() {
     var screen = document.getElementById('screen-stats');
     if (!screen) {
@@ -201,27 +284,36 @@ const StatsModule = {
       document.getElementById('userInterface').appendChild(screen);
     }
     this.buildMetrics();
+
     var stats = this.getStats();
     var history = this.getHistory();
-    var sortedHistory = history.slice().sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+    var sortedHistory = history.slice().sort(function(a, b) {
+      return (a.date < b.date) ? -1 : (a.date > b.date) ? 1 : 0;
+    });
+
     var bestStreak = 0, tempStreak = 0;
     for (var i = 0; i < sortedHistory.length; i++) {
-      if (!sortedHistory[i].skipped && sortedHistory[i].exercises && sortedHistory[i].exercises.length > 0) {
+      var rec = sortedHistory[i];
+      if (!rec.skipped && Array.isArray(rec.exercises) && rec.exercises.length > 0) {
         tempStreak++;
         if (tempStreak > bestStreak) bestStreak = tempStreak;
-      } else { tempStreak = 0; }
+      } else {
+        tempStreak = 0;
+      }
     }
     var currentStreak = 0;
-    for (var i = sortedHistory.length - 1; i >= 0; i--) {
-      if (!sortedHistory[i].skipped && sortedHistory[i].exercises && sortedHistory[i].exercises.length > 0) currentStreak++;
+    for (var j = sortedHistory.length - 1; j >= 0; j--) {
+      var r2 = sortedHistory[j];
+      if (!r2.skipped && Array.isArray(r2.exercises) && r2.exercises.length > 0) currentStreak++;
       else break;
     }
+
     var hintsEnabled = typeof shouldShowHints === 'function' ? shouldShowHints() : true;
     var hintHtml = hintsEnabled ? '<div class="hint" style="display:flex;align-items:center;gap:4px"><i class="ph ph-info"></i> Колёсико — зум, перетаскивание — панорама, скроллбары — навигация</div>' : '';
 
     var css = '<style>' +
-      '.stat-card { background:var(--card-bg); border-radius:14px; padding:18px; margin-bottom:16px; border:var(--card-border); transition:all 0.2s; }' +
-      '.stat-card:hover { border-color:var(--card-hover-border); transform:translateY(-2px); }' +
+      '.stat-card { background:var(--bg-card); border-radius:14px; padding:18px; margin-bottom:16px; border:1px solid var(--border-subtle); transition:all 0.2s; }' +
+      '.stat-card:hover { border-color:var(--border-gold); transform:translateY(-2px); }' +
       '.stat-metric { text-align:center; }' +
       '.stat-metric-value { font-size:2.2em; font-weight:bold; color:var(--accent-gold); line-height:1; }' +
       '.stat-metric-label { font-size:0.8em; opacity:0.7; margin-top:6px; display:flex; align-items:center; justify-content:center; gap:4px; color:var(--text-secondary); }' +
@@ -247,20 +339,20 @@ const StatsModule = {
       '.legend-toggle { width:32px; height:32px; background:var(--bg-glass); border:1px solid var(--border-gold); border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s; flex-shrink:0; }' +
       '.legend-toggle:hover { background:var(--accent-gold-dim); border-color:var(--accent-gold); }' +
       '.legend-toggle i { color:var(--accent-gold); font-size:1.1em; }' +
-      '.legend-panel { background:var(--modal-bg); border:1px solid var(--border-gold); border-radius:10px; padding:10px 14px; max-height:220px; overflow-y:auto; min-width:180px; box-shadow:0 4px 12px rgba(0,0,0,0.5); }' +
+      '.legend-panel { background:var(--modal-bg, var(--bg-secondary)); border:1px solid var(--border-gold); border-radius:10px; padding:10px 14px; max-height:220px; overflow-y:auto; min-width:180px; box-shadow:0 4px 12px rgba(0,0,0,0.5); }' +
       '.legend-item { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:0.8em; }' +
       '.legend-item:last-child { margin-bottom:0; }' +
       '.legend-color { width:12px; height:12px; border-radius:3px; flex-shrink:0; }' +
       '.legend-label { color:var(--text-secondary); flex:1; }' +
-      '.tooltip { position:absolute; background:var(--modal-bg); border:1px solid var(--border-gold); border-radius:8px; padding:10px 14px; font-size:0.8em; pointer-events:none; z-index:20; box-shadow:0 4px 12px rgba(0,0,0,0.5); max-width:250px; }' +
+      '.tooltip { position:absolute; background:var(--modal-bg, var(--bg-secondary)); border:1px solid var(--border-gold); border-radius:8px; padding:10px 14px; font-size:0.8em; pointer-events:none; z-index:20; box-shadow:0 4px 12px rgba(0,0,0,0.5); max-width:250px; }' +
       '.tooltip-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; }' +
       '.tooltip-row:last-child { margin-bottom:0; }' +
       '.tooltip-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }' +
       '.tooltip-label { opacity:0.7; flex:1; }' +
       '.tooltip-value { font-weight:600; color:var(--accent-gold); }' +
       '.tooltip-date { font-weight:600; color:var(--accent-gold); margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid var(--border-subtle); }' +
-      '.calendar-modal { position:fixed; top:0; left:0; width:100%; height:100%; background:var(--modal-overlay-bg); backdrop-filter:blur(15px); z-index:2000; display:flex; justify-content:center; align-items:center; padding:20px; }' +
-      '.calendar-content { background:var(--modal-bg); padding:28px; border-radius:20px; width:100%; max-width:500px; max-height:90vh; overflow-y:auto; border:var(--modal-border); box-shadow:var(--modal-shadow); }' +
+      '.calendar-modal { position:fixed; top:0; left:0; width:100%; height:100%; background:var(--modal-overlay-bg, rgba(0,0,0,0.9)); backdrop-filter:blur(15px); z-index:2000; display:flex; justify-content:center; align-items:center; padding:20px; }' +
+      '.calendar-content { background:var(--modal-bg, var(--bg-secondary)); padding:28px; border-radius:20px; width:100%; max-width:500px; max-height:90vh; overflow-y:auto; border:1px solid var(--border-gold); box-shadow:var(--shadow-modal, 0 10px 40px rgba(0,0,0,0.5)); }' +
       '.calendar-day { aspect-ratio:1; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.85em; cursor:pointer; transition:all 0.2s; border:1px solid var(--border-subtle); min-height:50px; position:relative; }' +
       '.calendar-day:hover { transform:scale(1.1); z-index:5; }' +
       '.calendar-day.full { background:rgba(74,222,128,0.2); border-color:var(--accent-success); }' +
@@ -269,7 +361,7 @@ const StatsModule = {
       '.calendar-day.empty { background:var(--bg-primary); opacity:0.5; }' +
       '.calendar-day .day-num { font-weight:600; font-size:1.1em; }' +
       '.calendar-day .day-icon { font-size:1.2em; margin-top:2px; }' +
-      '.calendar-tooltip { position:fixed; background:var(--modal-bg); border:1px solid var(--border-gold); border-radius:8px; padding:10px 14px; font-size:0.8em; pointer-events:none; z-index:3000; box-shadow:0 4px 12px rgba(0,0,0,0.5); max-width:280px; display:none; }' +
+      '.calendar-tooltip { position:fixed; background:var(--modal-bg, var(--bg-secondary)); border:1px solid var(--border-gold); border-radius:8px; padding:10px 14px; font-size:0.8em; pointer-events:none; z-index:3000; box-shadow:0 4px 12px rgba(0,0,0,0.5); max-width:280px; display:none; }' +
       '.calendar-tooltip .ct-date { font-weight:600; color:var(--accent-gold); margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid var(--border-subtle); }' +
       '.calendar-tooltip .ct-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; }' +
       '.calendar-tooltip .ct-row:last-child { margin-bottom:0; }' +
@@ -281,11 +373,11 @@ const StatsModule = {
     '</style>';
 
     var metricsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:10px;margin-bottom:20px">';
-    metricsHtml += '<div class="stat-card stat-metric"><i class="ph ph-star" style="font-size:1.5em;color:var(--accent-gold)"></i><div class="stat-metric-value">' + stats.level + '</div><div class="stat-metric-label">Уровень</div></div>';
+    metricsHtml += '<div class="stat-card stat-metric"><i class="ph ph-star" style="font-size:1.5em;color:var(--accent-gold)"></i><div class="stat-metric-value">' + (stats.level || 1) + '</div><div class="stat-metric-label">Уровень</div></div>';
     metricsHtml += '<div class="stat-card stat-metric"><i class="ph ph-flame" style="font-size:1.5em;color:var(--accent-gold)"></i><div class="stat-metric-value">' + currentStreak + '</div><div class="stat-metric-label">Текущий стрик</div></div>';
     metricsHtml += '<div class="stat-card stat-metric"><i class="ph ph-trophy" style="font-size:1.5em;color:var(--accent-gold)"></i><div class="stat-metric-value">' + bestStreak + '</div><div class="stat-metric-label">Лучший стрик</div></div>';
-    metricsHtml += '<div class="stat-card stat-metric"><i class="ph ph-check-circle" style="font-size:1.5em;color:var(--accent-gold)"></i><div class="stat-metric-value">' + stats.yes + '</div><div class="stat-metric-label">Тренировок</div></div>';
-    metricsHtml += '<div class="stat-card stat-metric"><i class="ph ph-lightning" style="font-size:1.5em;color:var(--accent-gold)"></i><div class="stat-metric-value">' + stats.xp + '</div><div class="stat-metric-label">XP</div></div>';
+    metricsHtml += '<div class="stat-card stat-metric"><i class="ph ph-check-circle" style="font-size:1.5em;color:var(--accent-gold)"></i><div class="stat-metric-value">' + (stats.yes || 0) + '</div><div class="stat-metric-label">Тренировок</div></div>';
+    metricsHtml += '<div class="stat-card stat-metric"><i class="ph ph-lightning" style="font-size:1.5em;color:var(--accent-gold)"></i><div class="stat-metric-value">' + (stats.xp || 0) + '</div><div class="stat-metric-label">XP</div></div>';
     metricsHtml += '</div>';
 
     var chartHtml = '<div class="stat-card" style="padding:0;overflow:hidden">';
@@ -308,15 +400,20 @@ const StatsModule = {
     streakHtml += '</div>';
     if (hintsEnabled) streakHtml += '<div class="hint" style="display:flex;align-items:center;gap:4px;margin-bottom:12px"><i class="ph ph-info"></i> Зелёный = тренировка, красный = пропуск</div>';
     streakHtml += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">';
-    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap) ? Core.getHistoryMap(history) : {};
-    for (var i = 13; i >= 0; i--) {
-      var date = new Date(); date.setDate(date.getDate() - i);
-      var dateStr = (typeof Core !== 'undefined' && Core.utils && Core.utils.formatLocalDate) ? Core.utils.formatLocalDate(date) : date.toISOString().slice(0, 10);
+
+    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap)
+      ? Core.getHistoryMap(history)
+      : this._buildHistoryMap(history);
+
+    for (var d = 13; d >= 0; d--) {
+      var date = new Date();
+      date.setDate(date.getDate() - d);
+      var dateStr = this._formatDate(date);
       var dayRecord = historyMap[dateStr] || null;
       var bgColor = 'var(--bg-primary)', iconClass = 'ph-circle', iconColor = 'var(--text-muted)';
       if (dayRecord) {
         if (dayRecord.skipped) { bgColor = 'rgba(248,113,113,0.15)'; iconClass = 'ph-x'; iconColor = 'var(--accent-error)'; }
-        else if (dayRecord.exercises && dayRecord.exercises.length > 0) { bgColor = 'rgba(74,222,128,0.15)'; iconClass = 'ph-check'; iconColor = 'var(--accent-success)'; }
+        else if (Array.isArray(dayRecord.exercises) && dayRecord.exercises.length > 0) { bgColor = 'rgba(74,222,128,0.15)'; iconClass = 'ph-check'; iconColor = 'var(--accent-success)'; }
       }
       var dayName = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][date.getDay()];
       streakHtml += '<div style="background:' + bgColor + ';border-radius:8px;padding:10px 4px;text-align:center;cursor:pointer;border:1px solid ' + (bgColor === 'var(--bg-primary)' ? 'var(--border-subtle)' : 'transparent') + '" title="' + dateStr + '"><div style="font-size:0.7em;opacity:0.8;margin-bottom:2px;color:var(--text-secondary)">' + dayName + '</div><i class="ph ' + iconClass + '" style="font-size:1.2em;color:' + iconColor + '"></i></div>';
@@ -326,25 +423,31 @@ const StatsModule = {
     var xpLogHtml = this._renderXpLog();
 
     screen.innerHTML = css + '<div style="padding:16px;max-width:900px;margin:0 auto"><h2 style="font-family:var(--font-display);font-size:2em;margin-bottom:20px;color:var(--accent-gold);display:flex;align-items:center;gap:12px"><i class="ph ph-chart-line-up"></i> Статистика</h2>' + metricsHtml + chartHtml + streakHtml + xpLogHtml + '</div>';
+
     this.renderMetricChips();
+
     var self = this;
-    setTimeout(function() { self.setupChartInteractions(); self.drawChart(); }, 50);
+    setTimeout(function() {
+      self.setupChartInteractions();
+      self.drawChart();
+    }, 50);
   },
 
   _renderXpLog: function() {
     if (typeof CoreData === 'undefined' || !CoreData.getXpLog) return '';
     var log = CoreData.getXpLog();
-    if (!log || log.length === 0) {
+    if (!Array.isArray(log) || log.length === 0) {
       return '<div class="stat-card"><h3 style="font-family:var(--font-display);color:var(--accent-gold);margin:0 0 10px 0;display:flex;align-items:center;gap:10px"><i class="ph ph-lightning"></i> История XP</h3><div style="text-align:center;padding:20px;opacity:0.6;font-size:0.9em"><i class="ph ph-clock" style="font-size:2em;color:var(--accent-gold);display:block;margin-bottom:8px"></i>Пока нет записей. Пройди тренировку или опрос.</div></div>';
     }
 
-    var sorted = log.slice().sort(function(a, b) { return b.timestamp - a.timestamp; });
+    var sorted = log.slice().sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
     if (sorted.length > 50) sorted = sorted.slice(0, 50);
 
-    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml) ? Core.utils.escapeHtml : function(t){ return t; };
+    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml)
+      ? Core.utils.escapeHtml : function(t) { return t == null ? '' : String(t); };
 
     var total = 0;
-    for (var i = 0; i < log.length; i++) total += log[i].amount || 0;
+    for (var i = 0; i < log.length; i++) total += (log[i].amount || 0);
 
     var html = '<div class="stat-card">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
@@ -353,33 +456,34 @@ const StatsModule = {
     html += '</div>';
 
     html += '<div style="display:flex;flex-direction:column;gap:6px">';
-    for (var i = 0; i < sorted.length; i++) {
-      var e = sorted[i];
-      var date = new Date(e.timestamp);
+    for (var k = 0; k < sorted.length; k++) {
+      var e = sorted[k];
+      var date = new Date(e.timestamp || Date.now());
       var dateStr = date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
       var timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
       var icon = 'ph-star';
       var color = 'var(--accent-gold)';
-      if (e.reason === 'Подход') { icon = 'ph-check-circle'; color = 'var(--accent-success)'; }
-      else if (e.reason === 'Упражнение завершено') { icon = 'ph-barbell'; color = 'var(--accent-info)'; }
-      else if (e.reason === 'День завершён') { icon = 'ph-trophy'; color = 'var(--accent-gold)'; }
-      else if (e.reason === 'Опрос') { icon = 'ph-clipboard-text'; color = 'var(--accent-warning)'; }
+      var reason = e.reason || '';
+      if (reason === 'Подход') { icon = 'ph-check-circle'; color = 'var(--accent-success)'; }
+      else if (reason === 'Упражнение завершено') { icon = 'ph-barbell'; color = 'var(--accent-info)'; }
+      else if (reason === 'День завершён') { icon = 'ph-trophy'; color = 'var(--accent-gold)'; }
+      else if (reason === 'Опрос') { icon = 'ph-clipboard-text'; color = 'var(--accent-warning)'; }
 
       html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-primary);border-radius:8px;border-left:3px solid ' + color + '">';
       html += '<i class="ph ' + icon + '" style="color:' + color + ';font-size:1.1em;flex-shrink:0"></i>';
-      html += '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:0.9em">' + esc(e.reason) + '</div>';
+      html += '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:0.9em">' + esc(reason) + '</div>';
       html += '<div style="font-size:0.75em;opacity:0.6">' + dateStr + ' · ' + timeStr + '</div></div>';
-      html += '<div style="font-weight:700;color:var(--accent-gold);font-size:1em;flex-shrink:0">+' + e.amount + ' XP</div>';
+      html += '<div style="font-weight:700;color:var(--accent-gold);font-size:1em;flex-shrink:0">+' + (e.amount || 0) + ' XP</div>';
       html += '</div>';
     }
     html += '</div></div>';
-
     return html;
   },
 
   renderMetricChips: function() {
-    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml) ? Core.utils.escapeHtml : function(t){return t;};
+    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml)
+      ? Core.utils.escapeHtml : function(t){return t == null ? '' : String(t);};
     var strip = document.getElementById('metricsStrip');
     if (!strip) return;
     var html = '';
@@ -398,10 +502,12 @@ const StatsModule = {
 
   toggleMetricChip: function(key) {
     this.activeMetrics[key] = !this.activeMetrics[key];
+    this._maxYCache = {}; // NEW: сбросить кэш максимума
     this.renderMetricChips();
     this.drawChart();
   },
 
+  /* ---------- ИНТЕРАКЦИИ ГРАФИКА ---------- */
   setupChartInteractions: function() {
     var wrap = document.getElementById('chartWrap');
     if (!wrap) return;
@@ -409,7 +515,9 @@ const StatsModule = {
     wrap.dataset.inited = '1';
     var canvas = document.getElementById('activityChart');
     var self = this;
-    var drawRaf = (typeof Core !== 'undefined' && Core.utils && Core.utils.throttleRaf) ? Core.utils.throttleRaf(function() { self.drawChart(); }) : function() { self.drawChart(); };
+    var drawRaf = (typeof Core !== 'undefined' && Core.utils && Core.utils.throttleRaf)
+      ? Core.utils.throttleRaf(function() { self.drawChart(); })
+      : function() { self.drawChart(); };
 
     wrap.addEventListener('wheel', function(e) {
       e.preventDefault();
@@ -523,27 +631,32 @@ const StatsModule = {
     var xRange = this.zoom.xMax - this.zoom.xMin;
     var dayIdx = Math.round(this.zoom.xMin + (x - padding.left) / chartWidth * xRange);
     if (dayIdx < 0 || dayIdx >= this.totalDays) { tooltip.style.display = 'none'; return; }
+
     var history = this.getHistory();
     if (history.length === 0) { tooltip.style.display = 'none'; return; }
-    var dates = history.map(function(h) { return h.date; }).sort();
+    var dates = history.map(function(h) { return h.date; }).filter(Boolean).sort();
+    if (dates.length === 0) { tooltip.style.display = 'none'; return; }
     var firstDate = new Date(dates[0] + 'T00:00:00');
     var date = new Date(firstDate);
     date.setDate(date.getDate() + dayIdx);
-    var dateStr = (typeof Core !== 'undefined' && Core.utils && Core.utils.formatLocalDate) ? Core.utils.formatLocalDate(date) : date.toISOString().slice(0, 10);
-    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap) ? Core.getHistoryMap(history) : {};
+    var dateStr = this._formatDate(date);
+    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap)
+      ? Core.getHistoryMap(history) : this._buildHistoryMap(history);
     var dayRecord = historyMap[dateStr] || null;
     if (!dayRecord) { tooltip.style.display = 'none'; return; }
 
-    var html = '<div class="tooltip-date">📅 ' + dateStr + '</div>';
-    var metrics = this.allMetrics;
-    for (var key in metrics) {
-      var m = metrics[key];
+    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml)
+      ? Core.utils.escapeHtml : function(t){ return t == null ? '' : String(t); };
+
+    var html = '<div class="tooltip-date">📅 ' + esc(dateStr) + '</div>';
+    for (var key in this.allMetrics) {
+      var m = this.allMetrics[key];
       if (!this.activeMetrics[key]) continue;
       var val = this.getMetricValue(dayRecord, key, m);
       if (val === null || val === undefined) continue;
       html += '<div class="tooltip-row">';
       html += '<div class="tooltip-dot" style="background:' + m.color + '"></div>';
-      html += '<div class="tooltip-label">' + (typeof Core !== 'undefined' && Core.utils ? Core.utils.escapeHtml(m.label) : m.label) + '</div>';
+      html += '<div class="tooltip-label">' + esc(m.label) + '</div>';
       html += '<div class="tooltip-value">' + this.formatMetricValue(val, m) + '</div>';
       html += '</div>';
     }
@@ -561,7 +674,7 @@ const StatsModule = {
   },
 
   getMetricValue: function(dayRecord, key, metric) {
-    if (key === 'exercises') return dayRecord.exercises ? dayRecord.exercises.length : 0;
+    if (key === 'exercises') return Array.isArray(dayRecord.exercises) ? dayRecord.exercises.length : 0;
     if (key === 'weight') return dayRecord.weight || null;
     if (key === 'mood') return dayRecord.mood || null;
     if (key.indexOf('survey_') === 0) {
@@ -573,14 +686,13 @@ const StatsModule = {
 
   formatMetricValue: function(val, metric) {
     if (val === null || val === undefined) return '—';
-    if (metric.questionType === 'emoji' && metric.emojiSet && metric.emojiSet[val]) {
-      return metric.emojiSet[val];
-    }
+    if (metric.questionType === 'emoji' && metric.emojiSet && metric.emojiSet[val]) return metric.emojiSet[val];
     return val + (metric.unit ? ' ' + metric.unit : '');
   },
 
   handlePointClick: function(e) {
     var canvas = document.getElementById('activityChart');
+    if (!canvas) return;
     var rect = canvas.getBoundingClientRect();
     var x = e.clientX - rect.left;
     var width = canvas.width;
@@ -591,16 +703,18 @@ const StatsModule = {
     if (dayIdx < 0 || dayIdx >= this.totalDays) return;
     var history = this.getHistory();
     if (history.length === 0) return;
-    var dates = history.map(function(h) { return h.date; }).sort();
+    var dates = history.map(function(h) { return h.date; }).filter(Boolean).sort();
+    if (dates.length === 0) return;
     var firstDate = new Date(dates[0] + 'T00:00:00');
     var date = new Date(firstDate);
     date.setDate(date.getDate() + dayIdx);
-    var dateStr = (typeof Core !== 'undefined' && Core.utils && Core.utils.formatLocalDate) ? Core.utils.formatLocalDate(date) : date.toISOString().slice(0, 10);
-    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap) ? Core.getHistoryMap(history) : {};
+    var dateStr = this._formatDate(date);
+    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap)
+      ? Core.getHistoryMap(history) : this._buildHistoryMap(history);
     var dayRecord = historyMap[dateStr] || null;
     if (dayRecord) {
       var info = '📅 ' + dateStr + '\n';
-      if (dayRecord.exercises) info += 'Упражнений: ' + dayRecord.exercises.length + '\n';
+      if (Array.isArray(dayRecord.exercises)) info += 'Упражнений: ' + dayRecord.exercises.length + '\n';
       if (dayRecord.weight) info += 'Вес: ' + dayRecord.weight + ' кг\n';
       if (dayRecord.mood) info += 'Самочувствие: ' + dayRecord.mood + '/10\n';
       if (typeof Notify !== 'undefined') Notify.info(info); else alert(info);
@@ -672,8 +786,7 @@ const StatsModule = {
   },
 
   resetZoom: function() {
-    this._chartDataCache = null;
-    this._chartDataCacheKey = null;
+    this.invalidateChartCache();
     this._zoomInitialized = false;
     var chartData = this.buildChartData();
     this.zoom.xMin = 0;
@@ -702,6 +815,7 @@ const StatsModule = {
     var labels = chartData.labels;
     this.totalDays = chartData.totalDays;
 
+    // Один раз считаем maxY через кэш
     var computedMaxY = this.findMaxY(data);
     this._currentMaxY = computedMaxY;
     if (this.zoom.yMax === 0 || this.zoom.yMax < computedMaxY) {
@@ -731,9 +845,8 @@ const StatsModule = {
     ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
     ctx.clip();
 
-    var metrics = this.allMetrics;
-    for (var key in metrics) {
-      var m = metrics[key];
+    for (var key in this.allMetrics) {
+      var m = this.allMetrics[key];
       if (!this.activeMetrics[key]) continue;
       var series = data[key];
       if (!series) continue;
@@ -744,24 +857,22 @@ const StatsModule = {
       ctx.lineCap = 'round';
       ctx.beginPath();
 
-      for (var i = 0; i < series.length; i++) {
-        var val = (series[i] === null || series[i] === undefined) ? 0 : series[i];
-        var x = padding.left + ((i - this.zoom.xMin) / xRange) * chartWidth;
-        var y = height - padding.bottom - ((val - this.zoom.yMin) / yRange) * chartHeight;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+      for (var s = 0; s < series.length; s++) {
+        var val = (series[s] === null || series[s] === undefined) ? 0 : series[s];
+        var px = padding.left + ((s - this.zoom.xMin) / xRange) * chartWidth;
+        var py = height - padding.bottom - ((val - this.zoom.yMin) / yRange) * chartHeight;
+        if (s === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
       }
       ctx.stroke();
 
-      for (var i = 0; i < series.length; i++) {
-        var val = (series[i] === null || series[i] === undefined) ? 0 : series[i];
-        var x = padding.left + ((i - this.zoom.xMin) / xRange) * chartWidth;
-        var y = height - padding.bottom - ((val - this.zoom.yMin) / yRange) * chartHeight;
-
-        if (x >= padding.left && x <= width - padding.right &&
-            y >= padding.top && y <= height - padding.bottom) {
+      for (var s2 = 0; s2 < series.length; s2++) {
+        var val2 = (series[s2] === null || series[s2] === undefined) ? 0 : series[s2];
+        var px2 = padding.left + ((s2 - this.zoom.xMin) / xRange) * chartWidth;
+        var py2 = height - padding.bottom - ((val2 - this.zoom.yMin) / yRange) * chartHeight;
+        if (px2 >= padding.left && px2 <= width - padding.right && py2 >= padding.top && py2 <= height - padding.bottom) {
           ctx.beginPath();
-          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.arc(px2, py2, 4, 0, Math.PI * 2);
           ctx.fillStyle = m.color;
           ctx.fill();
           ctx.strokeStyle = 'var(--bg-primary)';
@@ -776,18 +887,18 @@ const StatsModule = {
     ctx.font = '11px Inter, sans-serif';
     ctx.textAlign = 'center';
     var step = Math.max(1, Math.ceil(xRange / 8));
-    for (var i = Math.ceil(this.zoom.xMin); i <= Math.floor(this.zoom.xMax); i += step) {
-      if (i >= 0 && i < labels.length) {
-        var x = padding.left + ((i - this.zoom.xMin) / xRange) * chartWidth;
-        ctx.fillText(labels[i], x, height - padding.bottom + 18);
+    for (var t = Math.ceil(this.zoom.xMin); t <= Math.floor(this.zoom.xMax); t += step) {
+      if (t >= 0 && t < labels.length) {
+        var tx = padding.left + ((t - this.zoom.xMin) / xRange) * chartWidth;
+        ctx.fillText(labels[t], tx, height - padding.bottom + 18);
       }
     }
 
     ctx.textAlign = 'right';
     var yStep = Math.max(1, Math.ceil(yRange / 5));
     for (var v = Math.ceil(this.zoom.yMin); v <= Math.floor(this.zoom.yMax); v += yStep) {
-      var y = height - padding.bottom - ((v - this.zoom.yMin) / yRange) * chartHeight;
-      ctx.fillText(v, padding.left - 4, y + 4);
+      var vy = height - padding.bottom - ((v - this.zoom.yMin) / yRange) * chartHeight;
+      ctx.fillText(v, padding.left - 4, vy + 4);
     }
 
     var oldLegend = document.getElementById('chartLegend');
@@ -799,15 +910,17 @@ const StatsModule = {
 
     var hasAny = false;
     var itemsHtml = '';
-    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml) ? Core.utils.escapeHtml : function(t){return t;};
-    for (var key in metrics) {
-      var m = metrics[key];
-      if (!this.activeMetrics[key]) continue;
+    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml)
+      ? Core.utils.escapeHtml : function(t){ return t == null ? '' : String(t); };
+
+    for (var lk in this.allMetrics) {
+      var lm = this.allMetrics[lk];
+      if (!this.activeMetrics[lk]) continue;
       hasAny = true;
-      itemsHtml += '<div class="legend-item" style="cursor:pointer;padding:4px 8px;border-radius:4px;transition:background 0.15s" onmouseover="this.style.background=\'var(--accent-gold-dim)\'" onmouseout="this.style.background=\'transparent\'" onclick="event.stopPropagation();StatsModule.toggleMetricChip(\'' + esc(key) + '\')">';
-      itemsHtml += '<div class="legend-color" style="background:' + m.color + '"></div>';
-      itemsHtml += '<div class="legend-label">' + esc(m.label) + '</div>';
-      itemsHtml += '<i class="ph ' + (this.activeMetrics[key] ? 'ph-check-square' : 'ph-square') + '" style="color:var(--accent-gold);font-size:1em"></i>';
+      itemsHtml += '<div class="legend-item" style="cursor:pointer;padding:4px 8px;border-radius:4px;transition:background 0.15s" onmouseover="this.style.background=\'var(--accent-gold-dim)\'" onmouseout="this.style.background=\'transparent\'" onclick="event.stopPropagation();StatsModule.toggleMetricChip(\'' + esc(lk) + '\')">';
+      itemsHtml += '<div class="legend-color" style="background:' + lm.color + '"></div>';
+      itemsHtml += '<div class="legend-label">' + esc(lm.label) + '</div>';
+      itemsHtml += '<i class="ph ' + (this.activeMetrics[lk] ? 'ph-check-square' : 'ph-square') + '" style="color:var(--accent-gold);font-size:1em"></i>';
       itemsHtml += '</div>';
     }
 
@@ -833,6 +946,7 @@ const StatsModule = {
     if (hasAny) wrap.appendChild(legendDiv);
   },
 
+  /* ---------- КАЛЕНДАРЬ ---------- */
   openCalendar: function() {
     var oldTooltip = document.getElementById('calendarTooltip');
     if (oldTooltip) oldTooltip.remove();
@@ -890,7 +1004,8 @@ const StatsModule = {
     var monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
     title.textContent = monthNames[this.calendarMonth] + ' ' + this.calendarYear;
     var history = this.getHistory();
-    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap) ? Core.getHistoryMap(history) : {};
+    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap)
+      ? Core.getHistoryMap(history) : this._buildHistoryMap(history);
     var firstDay = new Date(this.calendarYear, this.calendarMonth, 1);
     var lastDay = new Date(this.calendarYear, this.calendarMonth + 1, 0);
     var daysInMonth = lastDay.getDate();
@@ -899,10 +1014,12 @@ const StatsModule = {
     today.setHours(0, 0, 0, 0);
     var html = '';
     for (var i = 0; i < startDay; i++) html += '<div></div>';
-    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml) ? Core.utils.escapeHtml : function(t){return t;};
+    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml)
+      ? Core.utils.escapeHtml : function(t){ return t == null ? '' : String(t); };
+
     for (var d = 1; d <= daysInMonth; d++) {
       var date = new Date(this.calendarYear, this.calendarMonth, d);
-      var dateStr = (typeof Core !== 'undefined' && Core.utils && Core.utils.formatLocalDate) ? Core.utils.formatLocalDate(date) : date.toISOString().slice(0, 10);
+      var dateStr = this._formatDate(date);
       var dayRecord = historyMap[dateStr] || null;
       var cls = 'empty';
       var icon = '';
@@ -912,12 +1029,12 @@ const StatsModule = {
         if (dayRecord.skipped) {
           cls = 'skipped';
           icon = '<i class="ph ph-x" style="color:var(--accent-error)"></i>';
-        } else if (dayRecord.exercises && dayRecord.exercises.length > 0) {
+        } else if (Array.isArray(dayRecord.exercises) && dayRecord.exercises.length > 0) {
           var allDone = true, anyDone = false;
-          if (dayRecord.details) {
+          if (Array.isArray(dayRecord.details)) {
             for (var k = 0; k < dayRecord.details.length; k++) {
               var det = dayRecord.details[k];
-              if (det.sets) {
+              if (det && Array.isArray(det.sets)) {
                 for (var s = 0; s < det.sets.length; s++) {
                   if (det.sets[s] === 'done') anyDone = true;
                   else if (det.sets[s] === 'partial') { allDone = false; anyDone = true; }
@@ -934,7 +1051,7 @@ const StatsModule = {
       var isToday = date.getTime() === today.getTime();
       var dataAttrs = 'data-date="' + dateStr + '"';
       if (dayRecord) {
-        if (dayRecord.exercises) dataAttrs += ' data-exercises="' + dayRecord.exercises.length + '"';
+        if (Array.isArray(dayRecord.exercises)) dataAttrs += ' data-exercises="' + dayRecord.exercises.length + '"';
         if (dayRecord.weight) dataAttrs += ' data-weight="' + dayRecord.weight + '"';
         if (dayRecord.mood) dataAttrs += ' data-mood="' + dayRecord.mood + '"';
       }
@@ -944,10 +1061,10 @@ const StatsModule = {
       html += '</div>';
     }
     grid.innerHTML = html;
-    this.setupCalendarTooltips();
+    this.setupCalendarTooltips(historyMap);
   },
 
-  setupCalendarTooltips: function() {
+  setupCalendarTooltips: function(historyMap) {
     var tooltip = document.getElementById('calendarTooltip');
     if (!tooltip) {
       tooltip = document.createElement('div');
@@ -955,30 +1072,38 @@ const StatsModule = {
       tooltip.id = 'calendarTooltip';
       document.body.appendChild(tooltip);
     }
-    var history = this.getHistory();
-    var historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap) ? Core.getHistoryMap(history) : {};
+    if (!historyMap) {
+      var history = this.getHistory();
+      historyMap = (typeof Core !== 'undefined' && Core.getHistoryMap)
+        ? Core.getHistoryMap(history) : this._buildHistoryMap(history);
+    }
     var config = this.getSurveyConfig();
+    var esc = (typeof Core !== 'undefined' && Core.utils && Core.utils.escapeHtml)
+      ? Core.utils.escapeHtml : function(t){ return t == null ? '' : String(t); };
+
     var days = document.querySelectorAll('.calendar-day');
     days.forEach(function(dayEl) {
-      dayEl.addEventListener('mouseenter', function(e) {
+      dayEl.addEventListener('mouseenter', function() {
         var dateStr = dayEl.getAttribute('data-date');
         if (!dateStr) return;
-        var html = '<div class="ct-date">📅 ' + dateStr + '</div>';
+        var html = '<div class="ct-date">📅 ' + esc(dateStr) + '</div>';
         var dayRecord = historyMap[dateStr] || null;
         if (dayRecord) {
           if (dayRecord.skipped) html += '<div class="ct-row"><div class="ct-dot" style="background:var(--accent-error)"></div><div class="ct-label">Статус:</div><div class="ct-value">Пропуск</div></div>';
-          else if (dayRecord.exercises && dayRecord.exercises.length > 0) html += '<div class="ct-row"><div class="ct-dot" style="background:var(--accent-success)"></div><div class="ct-label">Упражнений:</div><div class="ct-value">' + dayRecord.exercises.length + '</div></div>';
+          else if (Array.isArray(dayRecord.exercises) && dayRecord.exercises.length > 0) html += '<div class="ct-row"><div class="ct-dot" style="background:var(--accent-success)"></div><div class="ct-label">Упражнений:</div><div class="ct-value">' + dayRecord.exercises.length + '</div></div>';
           if (dayRecord.weight) html += '<div class="ct-row"><div class="ct-dot" style="background:#4ade80"></div><div class="ct-label">Вес:</div><div class="ct-value">' + dayRecord.weight + ' кг</div></div>';
           if (dayRecord.mood) html += '<div class="ct-row"><div class="ct-dot" style="background:#60a5fa"></div><div class="ct-label">Самочувствие:</div><div class="ct-value">' + dayRecord.mood + '/10</div></div>';
-          if (dayRecord && dayRecord.survey && config && config.questions) {
+          if (dayRecord.survey && config && Array.isArray(config.questions)) {
             for (var i = 0; i < config.questions.length; i++) {
               var q = config.questions[i];
+              if (!q) continue;
               var val = dayRecord.survey[q.id];
               if (val !== undefined && val !== null) {
                 var displayVal = val;
                 if (q.type === 'emoji' && q.emojiSet && q.emojiSet[val]) displayVal = q.emojiSet[val];
-                var shortQ = q.text.length > 25 ? q.text.substring(0, 25) + '…' : q.text;
-                html += '<div class="ct-row"><div class="ct-dot" style="background:#f472b6"></div><div class="ct-label">' + (typeof Core !== 'undefined' && Core.utils ? Core.utils.escapeHtml(shortQ) : shortQ) + ':</div><div class="ct-value">' + (typeof Core !== 'undefined' && Core.utils ? Core.utils.escapeHtml(String(displayVal)) : displayVal) + '</div></div>';
+                var text = q.text || '';
+                var shortQ = text.length > 25 ? text.substring(0, 25) + '…' : text;
+                html += '<div class="ct-row"><div class="ct-dot" style="background:#f472b6"></div><div class="ct-label">' + esc(shortQ) + ':</div><div class="ct-value">' + esc(String(displayVal)) + '</div></div>';
               }
             }
           }

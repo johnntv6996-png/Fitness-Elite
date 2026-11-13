@@ -1,4 +1,5 @@
 // modules/workout.js
+
 const WorkoutModule = {
   currentExerciseId: null,
   modalElement: null,
@@ -9,20 +10,38 @@ const WorkoutModule = {
     if (typeof Logger !== 'undefined') Logger.log('Модуль тренировки инициализирован', 'info');
   },
 
-  getPlan: function() { return (typeof FTStorage !== 'undefined' ? FTStorage.get('plan') : null) || []; },
-  getDB: function() { return (typeof ExercisesModule !== 'undefined' ? ExercisesModule.getDB() : null) || (typeof FTStorage !== 'undefined' ? FTStorage.get('db') : null) || []; },
-  getHistory: function() { return (typeof FTStorage !== 'undefined' ? FTStorage.get('history') : null) || []; },
+  getPlan: function() {
+    if (typeof CoreData !== 'undefined' && CoreData.getPlan) return CoreData.getPlan();
+    if (typeof FTStorage !== 'undefined') return FTStorage.get('plan') || [];
+    return [];
+  },
+  getDB: function() {
+    if (typeof ExercisesModule !== 'undefined' && ExercisesModule.getDB) return ExercisesModule.getDB();
+    if (typeof CoreData !== 'undefined' && CoreData.getDB) return CoreData.getDB();
+    if (typeof FTStorage !== 'undefined') return FTStorage.get('db') || [];
+    return [];
+  },
+  getHistory: function() {
+    if (typeof CoreData !== 'undefined' && CoreData.getHistory) return CoreData.getHistory();
+    if (typeof FTStorage !== 'undefined') return FTStorage.get('history') || [];
+    return [];
+  },
   saveHistory: function(h) {
-    if (typeof CoreData !== 'undefined') { CoreData.setHistory(h); return; }
+    if (typeof CoreData !== 'undefined' && CoreData.setHistory) { CoreData.setHistory(h); return; }
     if (typeof FTStorage !== 'undefined') FTStorage.set('history', h);
     if (typeof Core !== 'undefined') Core._historyMapCache = null;
   },
   saveStats: function(s) {
-    if (typeof CoreData !== 'undefined') { CoreData.setStats(s); return; }
+    if (typeof CoreData !== 'undefined' && CoreData.setStats) { CoreData.setStats(s); return; }
     if (typeof FTStorage !== 'undefined') FTStorage.set('stats', s);
   },
   getStats: function() {
-    var defaults = {yes:0, later:0, no:0, xp:0, level:1, streak:0, lastWorkoutDate:null};
+    var defaults = { yes: 0, later: 0, no: 0, xp: 0, level: 1, streak: 0, lastWorkoutDate: null };
+    if (typeof CoreData !== 'undefined' && CoreData.getStats) {
+      var s1 = CoreData.getStats();
+      for (var k1 in defaults) if (s1[k1] === undefined) s1[k1] = defaults[k1];
+      return s1;
+    }
     if (typeof FTStorage !== 'undefined') {
       var s = FTStorage.get('stats') || {};
       for (var k in defaults) if (s[k] === undefined) s[k] = defaults[k];
@@ -30,19 +49,44 @@ const WorkoutModule = {
     }
     return defaults;
   },
+
   _xpForLevel: function(level) {
     if (typeof Core !== 'undefined' && Core.utils && Core.utils.xpForLevel) return Core.utils.xpForLevel(level);
     return Math.floor(100 * Math.pow(1.2, Math.max(0, (level || 1) - 1)));
   },
+
   _parseSetsReps: function(setsStr) {
     var m = (setsStr || '3×10').match(/(\d+)\s*[×xх*]\s*(\d+)/i);
     return { sets: m ? parseInt(m[1]) : 3, reps: m ? parseInt(m[2]) : 10 };
   },
 
-  // Проверка: все подходы всех упражнений дня имеют ответ (любой: done/partial/missed/skipped)
+  _getTodayRecord: function(history) {
+    var todayStr = this._todayStr();
+    for (var i = 0; i < history.length; i++) {
+      if (history[i].date === todayStr) return history[i];
+    }
+    return null;
+  },
+
+  _todayStr: function() {
+    if (typeof Core !== 'undefined' && Core.utils && Core.utils.formatLocalDate) return Core.utils.formatLocalDate(new Date());
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  },
+  _todayIdx: function() {
+    if (typeof Core !== 'undefined' && Core.utils && Core.utils.getTodayIndex) return Core.utils.getTodayIndex();
+    return (new Date().getDay() + 6) % 7;
+  },
+  _todayName: function() {
+    if (typeof Core !== 'undefined' && Core.utils && Core.utils.getDayName) return Core.utils.getDayName(this._todayIdx());
+    return ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'][this._todayIdx()];
+  },
+
   _isDayFullyAnswered: function(todayPlan, dayRecord) {
     if (!todayPlan || !todayPlan.exercises || todayPlan.exercises.length === 0) return false;
     if (!dayRecord || !dayRecord.details) return false;
+
+    var hasAnyPositive = false;
     for (var i = 0; i < todayPlan.exercises.length; i++) {
       var exRef = todayPlan.exercises[i];
       var parsed = this._parseSetsReps(exRef.sets);
@@ -52,13 +96,14 @@ const WorkoutModule = {
       }
       if (!exDetail || !exDetail.sets) return false;
       for (var s = 0; s < parsed.sets; s++) {
-        if (!exDetail.sets[s]) return false;
+        var st = exDetail.sets[s];
+        if (!st) return false;
+        if (st === 'done' || st === 'partial') hasAnyPositive = true;
       }
     }
-    return true;
+    return hasAnyPositive;
   },
 
-  // === Главная модалка тренировки ===
   openWorkoutModal: function() {
     if (typeof Core === 'undefined' || !Core.utils) {
       if (typeof Notify !== 'undefined') Notify.error('Ядро не загружено');
@@ -67,7 +112,7 @@ const WorkoutModule = {
     var self = this;
     var plan = this.getPlan();
     var db = this.getDB();
-    var todayIdx = Core.utils.getTodayIndex();
+    var todayIdx = this._todayIdx();
     var todayPlan = plan[todayIdx] || { dayName: 'Сегодня', muscleGroup: '', exercises: [] };
 
     this.closeWorkoutModal();
@@ -80,7 +125,6 @@ const WorkoutModule = {
     content.className = 'workout-modal-content';
     content.style.cssText = 'max-width:640px;padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:92vh';
 
-    // === Шапка модалки ===
     var header = document.createElement('div');
     header.style.cssText = 'padding:16px 18px 12px;border-bottom:1px solid var(--border-subtle);flex-shrink:0;background:var(--bg-secondary)';
     header.innerHTML =
@@ -95,11 +139,15 @@ const WorkoutModule = {
             '<span id="workoutProgressText"><i class="ph ph-list-dashes"></i> 0/' + (todayPlan.exercises ? todayPlan.exercises.length : 0) + ' упр.</span>' +
           '</div>' +
         '</div>' +
-        '<button id="workoutCloseBtn" aria-label="Закрыть" style="background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-secondary);width:36px;height:36px;border-radius:50%;font-size:1.2em;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">' +
-          '<i class="ph ph-x"></i>' +
-        '</button>' +
+        '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">' +
+          '<button id="workoutFlowBtn" aria-label="Пошаговый режим" title="Пошаговый режим с таймерами" style="background:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));color:#000;border:none;height:36px;padding:0 12px;border-radius:18px;font-size:0.8em;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:var(--font-primary);white-space:nowrap">' +
+            '<i class="ph ph-play-circle" style="font-size:1.1em"></i> Пошаговый' +
+          '</button>' +
+          '<button id="workoutCloseBtn" aria-label="Закрыть" style="background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-secondary);width:36px;height:36px;border-radius:50%;font-size:1.2em;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">' +
+            '<i class="ph ph-x"></i>' +
+          '</button>' +
+        '</div>' +
       '</div>' +
-      // Полоска прогресса
       '<div style="margin-top:10px;height:6px;background:rgba(0,0,0,0.3);border-radius:3px;overflow:hidden;border:1px solid var(--border-subtle)">' +
         '<div id="workoutProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent-gold),var(--accent-gold-light));border-radius:3px;transition:width 0.3s"></div>' +
       '</div>';
@@ -107,9 +155,24 @@ const WorkoutModule = {
 
     header.querySelector('#workoutCloseBtn').onclick = function() { self.closeWorkoutModal(); };
 
-    // === Прокручиваемое тело ===
+    var flowBtn = header.querySelector('#workoutFlowBtn');
+    if (flowBtn) {
+      flowBtn.onclick = function() {
+        self.closeWorkoutModal();
+        if (typeof WorkoutFlow !== 'undefined' && WorkoutFlow.start) {
+          WorkoutFlow.start();
+        } else if (typeof Notify !== 'undefined') {
+          Notify.error('Модуль пошаговой тренировки не загружен');
+        }
+      };
+    }
+
     var body = document.createElement('div');
     body.style.cssText = 'padding:14px 18px 18px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch';
+
+    var history = this.getHistory();
+    var dayRecord = this._getTodayRecord(history);
+    var alreadyDone = dayRecord && dayRecord.xpDayAwarded;
 
     if (!todayPlan.exercises || todayPlan.exercises.length === 0) {
       body.innerHTML =
@@ -119,8 +182,18 @@ const WorkoutModule = {
           '<button class="btn btn-primary" style="margin-top:16px;padding:12px 20px" onclick="WorkoutModule.closeWorkoutModal();Core.navigate(\'plan\')"><i class="ph ph-calendar-plus"></i> Перейти к плану</button>' +
         '</div>';
     } else {
+      if (alreadyDone) {
+        var doneBanner = document.createElement('div');
+        doneBanner.style.cssText = 'padding:12px 16px;background:rgba(74,222,128,0.12);border:1px solid var(--accent-success);border-radius:12px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:0.9em';
+        doneBanner.innerHTML =
+          '<i class="ph ph-check-circle" style="color:var(--accent-success);font-size:1.4em;flex-shrink:0"></i>' +
+          '<div><strong style="color:var(--accent-success)">Тренировка завершена</strong>' +
+          '<div style="font-size:0.85em;opacity:0.75;margin-top:2px">Все подходы отмечены. +' + this.XP.PER_DAY + ' XP начислено.</div></div>';
+        body.appendChild(doneBanner);
+      }
+
       for (var i = 0; i < todayPlan.exercises.length; i++) {
-        body.appendChild(this._renderExerciseCard(todayPlan.exercises[i], i, db, todayPlan));
+        body.appendChild(this._renderExerciseCard(todayPlan.exercises[i], i, db, todayPlan, alreadyDone));
       }
     }
 
@@ -129,12 +202,10 @@ const WorkoutModule = {
     document.body.appendChild(modal);
     this.modalElement = modal;
 
-    // Обновляем прогресс
-    setTimeout(function() { self._updateProgress(todayPlan, db); }, 50);
+    setTimeout(function() { self._updateProgress(todayPlan); }, 50);
   },
 
-  // === Карточка упражнения ===
-  _renderExerciseCard: function(exRef, idx, db, todayPlan) {
+  _renderExerciseCard: function(exRef, idx, db, todayPlan, dayLocked) {
     var self = this;
     var ex = null;
     for (var j = 0; j < db.length; j++) if (db[j].id === exRef.id) { ex = db[j]; break; }
@@ -142,30 +213,33 @@ const WorkoutModule = {
 
     var parsed = this._parseSetsReps(exRef.sets);
     var history = this.getHistory();
-    var todayStr = Core.utils.formatLocalDate(new Date());
-    var dayRecord = null;
-    for (var h = 0; h < history.length; h++) if (history[h].date === todayStr) { dayRecord = history[h]; break; }
-
+    var dayRecord = this._getTodayRecord(history);
     var exDetail = null;
     if (dayRecord && dayRecord.details) {
-      for (var d = 0; d < dayRecord.details.length; d++) if (dayRecord.details[d].exId === exRef.id) { exDetail = dayRecord.details[d]; break; }
-    }
-    var setsDone = 0;
-    if (exDetail && exDetail.sets) {
-      for (var s = 0; s < parsed.sets; s++) {
-        if (exDetail.sets[s] && exDetail.sets[s] !== 'missed' && exDetail.sets[s] !== 'skipped') setsDone++;
+      for (var d = 0; d < dayRecord.details.length; d++) {
+        if (dayRecord.details[d].exId === exRef.id) { exDetail = dayRecord.details[d]; break; }
       }
     }
-    var isComplete = setsDone >= parsed.sets;
+
+    var setsDone = 0;
+    var setsPositive = 0;
+    if (exDetail && exDetail.sets) {
+      for (var s = 0; s < parsed.sets; s++) {
+        var st = exDetail.sets[s];
+        if (st === 'done' || st === 'partial') setsPositive++;
+        if (st === 'done') setsDone++;
+      }
+    }
+    var isComplete = setsPositive >= parsed.sets;
 
     var card = document.createElement('div');
     card.className = 'workout-ex-card';
     card.dataset.exId = exRef.id;
     card.style.cssText = 'background:var(--bg-card);border-radius:12px;margin-bottom:10px;border:1px solid var(--border-subtle);overflow:hidden;transition:border-color 0.2s';
 
-    // === Шапка карточки ===
     var header = document.createElement('div');
     header.style.cssText = 'padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:60px';
+    var setsLabel = setsDone + (setsPositive > setsDone ? '·+' + (setsPositive - setsDone) + 'ч' : '') + '/' + parsed.sets;
     header.innerHTML =
       '<div style="flex:1;min-width:0">' +
         '<div style="font-weight:700;font-size:0.98em;color:' + (isComplete ? 'var(--accent-success)' : 'var(--accent-gold)') + ';display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
@@ -175,16 +249,14 @@ const WorkoutModule = {
         '<div style="font-size:0.78em;opacity:0.7;margin-top:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
           '<span><i class="ph ph-tag"></i> ' + Core.utils.escapeHtml(ex.muscleGroup || 'Без категории') + '</span>' +
           '<span><i class="ph ph-list-numbers"></i> ' + parsed.sets + '×' + parsed.reps + '</span>' +
-          '<span style="color:' + (isComplete ? 'var(--accent-success)' : 'var(--accent-gold)') + ';font-weight:600">' + setsDone + '/' + parsed.sets + '</span>' +
+          '<span style="color:' + (isComplete ? 'var(--accent-success)' : 'var(--accent-gold)') + ';font-weight:600">' + setsLabel + '</span>' +
         '</div>' +
       '</div>' +
       '<i class="ph ph-caret-down" style="font-size:1.2em;opacity:0.7;flex-shrink:0"></i>';
 
-    // === Тело карточки ===
     var body = document.createElement('div');
     body.style.cssText = 'display:none;padding:0 16px 16px;border-top:1px solid var(--border-subtle)';
 
-    // Медиа: картинка и видео через универсальный модуль Media
     if (typeof Media !== 'undefined') {
       var imgEl = Media.renderImage(ex.imageUrl);
       if (imgEl) body.appendChild(imgEl);
@@ -192,7 +264,7 @@ const WorkoutModule = {
       var videoEl = Media.renderVideo(ex.videoUrl);
       if (videoEl) {
         body.appendChild(videoEl);
-      } else {
+      } else if (!dayLocked) {
         var placeholder = Media.renderVideoPlaceholder({
           onAdd: function() {
             self.closeWorkoutModal();
@@ -205,7 +277,6 @@ const WorkoutModule = {
       }
     }
 
-    // Описание / инвентарь / заметки
     if (ex.description || ex.inventory || ex.notes) {
       var infoDiv = document.createElement('div');
       infoDiv.style.cssText = 'margin-top:12px;font-size:0.85em;opacity:0.85;line-height:1.5';
@@ -217,23 +288,20 @@ const WorkoutModule = {
       body.appendChild(infoDiv);
     }
 
-    // === Подходы ===
-    var setsLabel = document.createElement('div');
-    setsLabel.style.cssText = 'margin-top:14px;font-weight:600;font-size:0.9em;margin-bottom:10px';
-    setsLabel.innerHTML = '<i class="ph ph-barbell" style="color:var(--accent-gold)"></i> Подходы';
-    body.appendChild(setsLabel);
+    var setsTitle = document.createElement('div');
+    setsTitle.style.cssText = 'margin-top:14px;font-weight:600;font-size:0.9em;margin-bottom:10px';
+    setsTitle.innerHTML = '<i class="ph ph-barbell" style="color:var(--accent-gold)"></i> Подходы';
+    body.appendChild(setsTitle);
 
     var setsGrid = document.createElement('div');
     setsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px';
     setsGrid.id = 'sets-grid-' + exRef.id;
 
-    for (var s = 0; s < parsed.sets; s++) {
-      var setBtn = this._renderSetButton(exRef.id, s, parsed.reps, exDetail);
-      setsGrid.appendChild(setBtn);
+    for (var si = 0; si < parsed.sets; si++) {
+      setsGrid.appendChild(this._renderSetButton(exRef.id, si, parsed.reps, exDetail, dayLocked));
     }
     body.appendChild(setsGrid);
 
-    // === Раскрытие/сворачивание ===
     header.onclick = function() {
       var isOpen = body.style.display !== 'none';
       body.style.display = isOpen ? 'none' : 'block';
@@ -246,9 +314,8 @@ const WorkoutModule = {
     card.appendChild(body);
     return card;
   },
-	
-  // === Кнопка подхода ===
-  _renderSetButton: function(exId, setIdx, numReps, exDetail) {
+
+  _renderSetButton: function(exId, setIdx, numReps, exDetail, dayLocked) {
     var self = this;
     var btn = document.createElement('button');
     btn.className = 'workout-set-btn';
@@ -287,20 +354,26 @@ const WorkoutModule = {
       '<span style="font-size:0.7em;opacity:0.8;line-height:1">' + label + '</span>';
     btn.style.color = color;
     if (bg !== 'var(--bg-primary)') btn.style.background = bg;
-    btn.style.borderColor = (status === 'done') ? 'var(--accent-success)' : (status === 'partial') ? 'var(--accent-warning)' : 'var(--border-subtle)';
+    btn.style.borderColor = (status === 'done') ? 'var(--accent-success)' :
+                            (status === 'partial') ? 'var(--accent-warning)' :
+                            (status === 'missed' || status === 'skipped') ? 'var(--accent-error)' :
+                            'var(--border-subtle)';
 
-    if (!status || status === 'missed' || status === 'skipped') {
+    if (dayLocked) {
+      btn.disabled = true;
+      btn.style.opacity = '0.85';
+      btn.style.cursor = 'default';
+    } else if (!status || status === 'missed' || status === 'skipped') {
       btn.onclick = function() { self._openSetSurvey(exId, setIdx, numReps); };
     } else {
       btn.disabled = true;
-      btn.style.opacity = '0.8';
+      btn.style.opacity = '0.85';
       btn.style.cursor = 'default';
     }
 
     return btn;
   },
 
-  // === Inline мини-опрос (заменяет модалку) ===
   _openSetSurvey: function(exId, setIdx, numReps) {
     var self = this;
     var existing = document.getElementById('setSurveyInline');
@@ -372,28 +445,39 @@ const WorkoutModule = {
     };
   },
 
-  // === Применение ответа на подход ===
   _applySetAnswer: function(exId, setIdx, setStatus, partialReps) {
     var history = this.getHistory();
-    var todayStr = Core.utils.formatLocalDate(new Date());
-    var dayRecord = null;
-    for (var i = 0; i < history.length; i++) if (history[i].date === todayStr) { dayRecord = history[i]; break; }
+    var todayStr = this._todayStr();
+    var dayRecord = this._getTodayRecord(history);
+
     if (!dayRecord) {
       dayRecord = {
         date: todayStr,
-        dayName: Core.utils.getDayName(Core.utils.getTodayIndex()),
-        muscleGroup: '', exercises: [], details: [], duration: 0, timestamp: Date.now()
+        dayName: this._todayName(),
+        muscleGroup: '',
+        exercises: [],
+        details: [],
+        duration: 0,
+        timestamp: Date.now()
       };
       history.push(dayRecord);
     }
+
     var hasEx = false;
-    for (var i = 0; i < dayRecord.exercises.length; i++) if (dayRecord.exercises[i].id === exId) { hasEx = true; break; }
+    for (var i = 0; i < dayRecord.exercises.length; i++) {
+      if (dayRecord.exercises[i].id === exId) { hasEx = true; break; }
+    }
     if (!hasEx) dayRecord.exercises.push({ id: exId });
 
     if (!dayRecord.details) dayRecord.details = [];
     var exDetail = null;
-    for (var i = 0; i < dayRecord.details.length; i++) if (dayRecord.details[i].exId === exId) { exDetail = dayRecord.details[i]; break; }
-    if (!exDetail) { exDetail = { exId: exId, sets: [], partialReps: [] }; dayRecord.details.push(exDetail); }
+    for (var d = 0; d < dayRecord.details.length; d++) {
+      if (dayRecord.details[d].exId === exId) { exDetail = dayRecord.details[d]; break; }
+    }
+    if (!exDetail) {
+      exDetail = { exId: exId, sets: [], partialReps: [] };
+      dayRecord.details.push(exDetail);
+    }
     if (!exDetail.sets) exDetail.sets = [];
     if (!exDetail.partialReps) exDetail.partialReps = [];
 
@@ -402,67 +486,73 @@ const WorkoutModule = {
     exDetail.sets[setIdx] = setStatus;
     if (partialReps !== null) exDetail.partialReps[setIdx] = partialReps;
 
-    this.markSetDone(exId, setIdx, setStatus, partialReps, dayRecord, exDetail, history);
+    this._recalculateAndAward(dayRecord, exDetail, history);
   },
 
-  // === Начисление XP ===
-  markSetDone: function(exId, setIdx, setStatus, partialReps, dayRecord, exDetail, history) {
+  _recalculateAndAward: function(dayRecord, exDetail, history) {
     var stats = this.getStats();
-    var xpChange = 0;
-    if (setStatus === 'done') xpChange = this.XP.PER_SET;
-    else if (setStatus === 'partial') xpChange = this.XP.PER_PARTIAL;
-    stats.xp = Math.max(0, (stats.xp || 0) + xpChange);
-    if (xpChange > 0 && typeof CoreData !== 'undefined' && CoreData.logXP) {
-      CoreData.logXP(xpChange, 'Подход', { exId: exId, setIdx: setIdx, status: setStatus });
+    var todayStr = this._todayStr();
+    var leveledUp = false;
+
+    var exXpSets = 0;
+    if (exDetail.sets) {
+      for (var s = 0; s < exDetail.sets.length; s++) {
+        var st = exDetail.sets[s];
+        if (st === 'done') exXpSets += this.XP.PER_SET;
+        else if (st === 'partial') exXpSets += this.XP.PER_PARTIAL;
+      }
     }
-
-    var todayStr = Core.utils.formatLocalDate(new Date());
-
-    // === XP за упражнение — один раз, когда все подходы упражнения имеют ответ ===
-    var plan = this.getPlan();
-    var todayIdx = Core.utils.getTodayIndex();
-    var todayPlan = plan[todayIdx];
-    var exRef = null;
-    if (todayPlan && todayPlan.exercises) {
-      for (var i = 0; i < todayPlan.exercises.length; i++) if (todayPlan.exercises[i].id === exId) { exRef = todayPlan.exercises[i]; break; }
+    var prevExXpSets = exDetail._xpSets || 0;
+    var deltaSets = exXpSets - prevExXpSets;
+    if (deltaSets !== 0) {
+      stats.xp = Math.max(0, (stats.xp || 0) + deltaSets);
+      if (typeof CoreData !== 'undefined' && CoreData.logXP) {
+        CoreData.logXP(deltaSets, 'Подход', { exId: exDetail.exId, total: exXpSets });
+      }
+      exDetail._xpSets = exXpSets;
     }
 
     var exAllAnswered = false;
-    var parsed = exRef ? this._parseSetsReps(exRef.sets) : null;
-    if (parsed) {
-      exAllAnswered = true;
-      for (var s = 0; s < parsed.sets; s++) if (!exDetail.sets[s]) { exAllAnswered = false; break; }
+    var plan = this.getPlan();
+    var todayPlan = plan[this._todayIdx()];
+    var exRef = null;
+    if (todayPlan && todayPlan.exercises) {
+      for (var i = 0; i < todayPlan.exercises.length; i++) {
+        if (todayPlan.exercises[i].id === exDetail.exId) { exRef = todayPlan.exercises[i]; break; }
+      }
     }
-
-    var leveledUp = false;
+    if (exRef) {
+      var parsed = this._parseSetsReps(exRef.sets);
+      exAllAnswered = true;
+      for (var s2 = 0; s2 < parsed.sets; s2++) {
+        var st2 = exDetail.sets[s2];
+        if (!st2) { exAllAnswered = false; break; }
+      }
+    }
 
     if (exAllAnswered && !exDetail.xpAwarded) {
       exDetail.xpAwarded = true;
       stats.xp += this.XP.PER_EXERCISE;
       if (typeof CoreData !== 'undefined' && CoreData.logXP) {
-        CoreData.logXP(this.XP.PER_EXERCISE, 'Упражнение завершено', { exId: exId });
+        CoreData.logXP(this.XP.PER_EXERCISE, 'Упражнение завершено', { exId: exDetail.exId });
       }
     }
 
-    // === Засчитывание тренировки и XP за день — только когда ВСЕ упражнения дня полностью отвечены ===
     var dayFullyAnswered = this._isDayFullyAnswered(todayPlan, dayRecord);
     if (dayFullyAnswered && !dayRecord.xpDayAwarded) {
       dayRecord.xpDayAwarded = true;
 
-      // засчитываем тренировку (один раз за день)
       if (stats.lastWorkoutDate !== todayStr) {
         stats.yes = (stats.yes || 0) + 1;
         stats.streak = (stats.streak || 0) + 1;
         stats.lastWorkoutDate = todayStr;
       }
-
       stats.xp += this.XP.PER_DAY;
       if (typeof CoreData !== 'undefined' && CoreData.logXP) {
         CoreData.logXP(this.XP.PER_DAY, 'День завершён', null);
       }
     }
 
-    // пересчёт уровня
     var xpNeeded = this._xpForLevel(stats.level);
     while (stats.xp >= xpNeeded) {
       stats.xp -= xpNeeded;
@@ -478,7 +568,9 @@ const WorkoutModule = {
     if (leveledUp) {
       var lvl = stats.level;
       setTimeout(function() {
-        if (typeof showAchievementToast === 'function') showAchievementToast('Новый уровень ' + lvl + '!', 'Ты достиг уровня ' + lvl, 'ph-star');
+        if (typeof showAchievementToast === 'function') {
+          showAchievementToast('Новый уровень ' + lvl + '!', 'Ты достиг уровня ' + lvl, 'ph-star');
+        }
       }, 100);
     }
 
@@ -486,9 +578,9 @@ const WorkoutModule = {
       AchievementsModule.checkAchievements();
     }
 
-    // Перерисовка
     var self = this;
-    if (dayFullyAnswered) {
+    if (dayFullyAnswered && !this._wasDayDoneBefore) {
+      this._wasDayDoneBefore = true;
       setTimeout(function() {
         if (typeof showAchievementToast === 'function') {
           showAchievementToast('🏆 День пройден!', 'Все упражнения выполнены. +' + self.XP.PER_DAY + ' XP', 'ph-trophy');
@@ -497,28 +589,38 @@ const WorkoutModule = {
         self.openWorkoutModal();
       }, 300);
     } else {
-      var setBtn = document.querySelector('.workout-set-btn[data-ex-id="' + exId + '"][data-set-idx="' + setIdx + '"]');
-      if (setBtn && exRef) {
-        var newBtn = this._renderSetButton(exId, setIdx, this._parseSetsReps(exRef.sets).reps, exDetail);
-        setBtn.parentNode.replaceChild(newBtn, setBtn);
-      }
-      this._updateProgress(todayPlan, this.getDB());
+      this._refreshExerciseCard(exDetail.exId);
+      this._updateProgress(todayPlan);
     }
   },
 
-  // === Прогресс сверху ===
-  _updateProgress: function(todayPlan, db) {
+  _refreshExerciseCard: function(exId) {
+    var card = document.querySelector('.workout-ex-card[data-ex-id="' + exId + '"]');
+    if (!card) return;
+    var plan = this.getPlan();
+    var todayPlan = plan[this._todayIdx()];
+    if (!todayPlan || !todayPlan.exercises) return;
+    var idx = -1;
+    for (var i = 0; i < todayPlan.exercises.length; i++) {
+      if (todayPlan.exercises[i].id === exId) { idx = i; break; }
+    }
+    if (idx === -1) return;
+    var newCard = this._renderExerciseCard(todayPlan.exercises[idx], idx, this.getDB(), todayPlan, false);
+    if (newCard && newCard.nodeType === 1) {
+      card.parentNode.replaceChild(newCard, card);
+    }
+  },
+
+  _updateProgress: function(todayPlan) {
     var textEl = document.getElementById('workoutProgressText');
     var barEl = document.getElementById('workoutProgressBar');
     if (!textEl || !barEl) return;
     if (!todayPlan || !todayPlan.exercises) return;
 
     var history = this.getHistory();
-    var todayStr = Core.utils.formatLocalDate(new Date());
-    var dayRecord = null;
-    for (var h = 0; h < history.length; h++) if (history[h].date === todayStr) { dayRecord = history[h]; break; }
+    var dayRecord = this._getTodayRecord(history);
 
-    var totalSets = 0, doneSets = 0;
+    var totalSets = 0, positiveSets = 0;
     var exDone = 0;
     for (var i = 0; i < todayPlan.exercises.length; i++) {
       var exRef = todayPlan.exercises[i];
@@ -526,20 +628,23 @@ const WorkoutModule = {
       totalSets += parsed.sets;
       var exDetail = null;
       if (dayRecord && dayRecord.details) {
-        for (var d = 0; d < dayRecord.details.length; d++) if (dayRecord.details[d].exId === exRef.id) { exDetail = dayRecord.details[d]; break; }
-      }
-      var setsDone = 0;
-      if (exDetail && exDetail.sets) {
-        for (var s = 0; s < parsed.sets; s++) {
-          if (exDetail.sets[s]) setsDone++;
+        for (var d = 0; d < dayRecord.details.length; d++) {
+          if (dayRecord.details[d].exId === exRef.id) { exDetail = dayRecord.details[d]; break; }
         }
       }
-      doneSets += setsDone;
-      if (setsDone >= parsed.sets) exDone++;
+      var setsPos = 0;
+      if (exDetail && exDetail.sets) {
+        for (var s = 0; s < parsed.sets; s++) {
+          var st = exDetail.sets[s];
+          if (st === 'done' || st === 'partial') setsPos++;
+        }
+      }
+      positiveSets += setsPos;
+      if (setsPos >= parsed.sets) exDone++;
     }
 
-    textEl.innerHTML = '<i class="ph ph-list-dashes"></i> ' + exDone + '/' + todayPlan.exercises.length + ' упр. · ' + doneSets + '/' + totalSets + ' подх.';
-    var percent = totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
+    textEl.innerHTML = '<i class="ph ph-list-dashes"></i> ' + exDone + '/' + todayPlan.exercises.length + ' упр. · ' + positiveSets + '/' + totalSets + ' подх.';
+    var percent = totalSets > 0 ? Math.round((positiveSets / totalSets) * 100) : 0;
     barEl.style.width = percent + '%';
   },
 
@@ -551,6 +656,7 @@ const WorkoutModule = {
     if (survey) survey.remove();
     this.currentExerciseId = null;
     this._miniSurveyContext = null;
+    this._wasDayDoneBefore = false;
   }
 };
 
